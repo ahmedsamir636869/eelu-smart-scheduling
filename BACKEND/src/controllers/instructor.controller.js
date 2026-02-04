@@ -3,8 +3,8 @@ const STATUS_MESSAGES = require('../constants/status.messages');
 
 const createInstructorController = async (req, res) => {
     try {
-        const { name, departmentId, day, startTime, endTime } = req.body;
-        const instructor = await createInstructor(name, departmentId, day, startTime, endTime);
+        const { name, type, departmentId, day, startTime, endTime, weeklyHours } = req.body;
+        const instructor = await createInstructor(name, type, departmentId, day, startTime, endTime, weeklyHours);
         res.status(201).json({
             status: STATUS_MESSAGES.SUCCESS,
             message: 'Instructor created successfully',
@@ -40,6 +40,12 @@ const getInstructorByIdController = async (req, res) => {
     try {
         const { instructorId } = req.params;
         const instructor = await getInstructorById(instructorId);
+        if (!instructor) {
+            return res.status(404).json({
+                status: STATUS_MESSAGES.ERROR,
+                message: 'Instructor not found'
+            });
+        }
         res.status(200).json({
             status: STATUS_MESSAGES.SUCCESS,
             message: 'Instructor fetched successfully',
@@ -57,8 +63,8 @@ const getInstructorByIdController = async (req, res) => {
 const updateInstructorController = async (req, res) => {
     try {
         const { instructorId } = req.params;
-        const { name, day, startTime, endTime } = req.body;
-        const updatedInstructor = await updateInstructor(instructorId, name, day, startTime, endTime);
+        const { name, type, day, startTime, endTime, weeklyHours } = req.body;
+        const updatedInstructor = await updateInstructor(instructorId, name, type, day, startTime, endTime, weeklyHours);
         res.status(200).json({
             status: STATUS_MESSAGES.SUCCESS,
             message: 'Instructor updated successfully',
