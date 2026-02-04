@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>إعادة تعيين كلمة المرور - EELU</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7fa;
+            direction: rtl;
+        }
+
+        .email-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1a365d 0%, #2d5a87 100%);
+            padding: 40px 30px;
+            text-align: center;
+        }
+
+        .header img {
+            width: 80px;
+            height: auto;
+            margin-bottom: 15px;
+        }
+
+        .header h1 {
+            color: #ffffff;
+            font-size: 24px;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .header p {
+            color: #a8c5e2;
+            font-size: 14px;
+            margin-top: 8px;
+        }
+
+        .content {
+            padding: 40px 30px;
+            text-align: center;
+        }
+
+        .icon-container {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #f0f7ff 0%, #e0efff 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 25px;
+        }
+
+        .icon-container svg {
+            width: 40px;
+            height: 40px;
+            fill: #1a365d;
+        }
+
+        .greeting {
+            font-size: 20px;
+            color: #1a365d;
+            font-weight: 600;
+            margin-bottom: 15px;
+        }
+
+        .message {
+            color: #4a5568;
+            font-size: 16px;
+            line-height: 1.7;
+            margin-bottom: 30px;
+        }
+
+        .otp-container {
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            border: 2px dashed #cbd5e0;
+            border-radius: 12px;
+            padding: 25px;
+            margin: 25px 0;
+        }
+
+        .otp-label {
+            color: #64748b;
+            font-size: 14px;
+            margin-bottom: 12px;
+        }
+
+        .otp-code {
+            font-size: 36px;
+            font-weight: 700;
+            letter-spacing: 12px;
+            color: #1a365d;
+            font-family: 'Courier New', monospace;
+            direction: ltr;
+            display: inline-block;
+        }
+
+        .expiry-notice {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            background-color: #fef3c7;
+            border: 1px solid #f59e0b;
+            border-radius: 8px;
+            padding: 12px 20px;
+            margin: 25px 0;
+        }
+
+        .expiry-notice svg {
+            width: 20px;
+            height: 20px;
+            fill: #d97706;
+            flex-shrink: 0;
+        }
+
+        .expiry-notice span {
+            color: #92400e;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .security-note {
+            background-color: #f8fafc;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 30px;
+            text-align: right;
+        }
+
+        .security-note h3 {
+            color: #475569;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .security-note svg {
+            width: 18px;
+            height: 18px;
+            fill: #64748b;
+        }
+
+        .security-note p {
+            color: #64748b;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .footer {
+            background-color: #1a365d;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .footer p {
+            color: #a8c5e2;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .footer a {
+            color: #60a5fa;
+            text-decoration: none;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
+
+        .social-links {
+            margin-top: 20px;
+        }
+
+        .social-links a {
+            display: inline-block;
+            width: 36px;
+            height: 36px;
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            margin: 0 5px;
+            line-height: 36px;
+        }
+
+        .social-links svg {
+            width: 18px;
+            height: 18px;
+            fill: #ffffff;
+            vertical-align: middle;
+        }
+
+        .divider {
+            height: 1px;
+            background: linear-gradient(to right, transparent, #e2e8f0, transparent);
+            margin: 25px 0;
+        }
+
+        @media only screen and (max-width: 600px) {
+            .email-container {
+                margin: 10px;
+                border-radius: 12px;
+            }
+
+            .header,
+            .content,
+            .footer {
+                padding: 25px 20px;
+            }
+
+            .otp-code {
+                font-size: 28px;
+                letter-spacing: 8px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding: 20px 0;">
+        <tr>
+            <td align="center">
+                <div class="email-container">
+                    <!-- Header -->
+                    <div class="header">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 24 24" fill="none"
+                            stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                            <path d="M9 12l2 2 4-4" />
+                        </svg>
+                        <h1>إعادة تعيين كلمة المرور</h1>
+                        <p>EELU - الجامعة المصرية للتعلم الإلكتروني</p>
+                    </div>
+
+                    <!-- Content -->
+                    <div class="content">
+                        <div class="icon-container">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#1a365d">
+                                <path
+                                    d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z" />
+                            </svg>
+                        </div>
+
+                        <h2 class="greeting">مرحباً {{userName}}</h2>
+
+                        <p class="message">
+                            لقد تلقينا طلباً لإعادة تعيين كلمة المرور الخاصة بحسابك.<br>
+                            استخدم الرمز التالي للمتابعة:
+                        </p>
+
+                        <div class="otp-container">
+                            <p class="otp-label">رمز التحقق الخاص بك</p>
+                            <div class="otp-code">{{otpCode}}</div>
+                        </div>
+
+                        <div class="expiry-notice">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#d97706">
+                                <path
+                                    d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
+                            </svg>
+                            <span>هذا الرمز صالح لمدة <strong>{{expiryMinutes}} دقائق</strong> فقط</span>
+                        </div>
+
+                        <div class="divider"></div>
+
+                        <div class="security-note">
+                            <h3>
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#64748b">
+                                    <path
+                                        d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z" />
+                                </svg>
+                                تنبيه أمني
+                            </h3>
+                            <p>
+                                إذا لم تطلب إعادة تعيين كلمة المرور، يرجى تجاهل هذا البريد الإلكتروني.
+                                لن يتم إجراء أي تغييرات على حسابك.
+                                <br><br>
+                                لا تشارك هذا الرمز مع أي شخص. فريق الدعم لن يطلب منك هذا الرمز أبداً.
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Footer -->
+                    <div class="footer">
+                        <p>
+                            هذا البريد الإلكتروني تم إرساله تلقائياً من نظام EELU.<br>
+                            للمساعدة، تواصل معنا عبر
+                            <a href="mailto:support@eelu.edu.eg">support@eelu.edu.eg</a>
+                        </p>
+
+                        <div class="social-links">
+                            <a href="#">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#ffffff">
+                                    <path
+                                        d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+                                </svg>
+                            </a>
+                            <a href="#">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#ffffff">
+                                    <path
+                                        d="M23.953 4.57a10 10 0 01-2.825.775 4.958 4.958 0 002.163-2.723c-.951.555-2.005.959-3.127 1.184a4.92 4.92 0 00-8.384 4.482C7.69 8.095 4.067 6.13 1.64 3.162a4.822 4.822 0 00-.666 2.475c0 1.71.87 3.213 2.188 4.096a4.904 4.904 0 01-2.228-.616v.06a4.923 4.923 0 003.946 4.827 4.996 4.996 0 01-2.212.085 4.936 4.936 0 004.604 3.417 9.867 9.867 0 01-6.102 2.105c-.39 0-.779-.023-1.17-.067a13.995 13.995 0 007.557 2.209c9.053 0 13.998-7.496 13.998-13.985 0-.21 0-.42-.015-.63A9.935 9.935 0 0024 4.59z" />
+                                </svg>
+                            </a>
+                            <a href="#">
+                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#ffffff">
+                                    <path
+                                        d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm4.441 16.892c-2.102.144-6.784.144-8.883 0C5.282 16.736 5.017 15.622 5 12c.017-3.629.285-4.736 2.558-4.892 2.099-.144 6.782-.144 8.883 0C18.718 7.264 18.982 8.378 19 12c-.018 3.629-.285 4.736-2.559 4.892zM10 9.658l4.917 2.338L10 14.342V9.658z" />
+                                </svg>
+                            </a>
+                        </div>
+
+                        <p style="margin-top: 20px; font-size: 12px; color: #718096;">
+                            © 2024 EELU. جميع الحقوق محفوظة.
+                        </p>
+                    </div>
+                </div>
+            </td>
+        </tr>
+    </table>
+</body>
+
+</html>
