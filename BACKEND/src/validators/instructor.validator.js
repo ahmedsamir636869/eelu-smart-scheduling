@@ -10,17 +10,21 @@ const cuidMessages = {
 
 const createInstructorSchema = Joi.object({
     name: Joi.string().required(),
+    type: Joi.string().valid('DOCTOR', 'TA').required(),
     departmentId: cuidSchema.messages(cuidMessages),
-    day: Joi.string().required(),
-    startTime: Joi.string().required(),
-    endTime: Joi.string().required()
+    day: Joi.string().valid('SATURDAY', 'SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY').optional().allow(null),
+    startTime: Joi.string().optional().allow(null),
+    endTime: Joi.string().optional().allow(null),
+    weeklyHours: Joi.number().integer().min(0).required()
 });
 
 const updateInstructorSchema = Joi.object({
     name: Joi.string().required(),
-    day: Joi.string().required(),
-    startTime: Joi.string().required(),
-    endTime: Joi.string().required()
+    type: Joi.string().valid('DOCTOR', 'TA').required(),
+    day: Joi.string().valid('SATURDAY', 'SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY').optional().allow(null),
+    startTime: Joi.string().optional().allow(null),
+    endTime: Joi.string().optional().allow(null),
+    weeklyHours: Joi.number().integer().min(0).required()
 });
 
 const paramsSchema = Joi.object({

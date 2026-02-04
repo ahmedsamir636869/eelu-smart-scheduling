@@ -1,13 +1,15 @@
 const { prisma } = require('../config/db.js');
 
-const createInstructor = async (name, departmentId, day, startTime, endTime) => {
+const createInstructor = async (name, type, departmentId, day, startTime, endTime, weeklyHours) => {
     const instructor = await prisma.instructor.create({
         data: {
             name,
+            type,
             departmentId,
             day,
             startTime,
-            endTime
+            endTime,
+            weeklyHours
         }
     })
     return instructor;
@@ -27,16 +29,18 @@ const getInstructorById = async (instructorId) => {
     return instructor;
 }
 
-const updateInstructor = async (instructorId, name, day, startTime, endTime) => {
+const updateInstructor = async (instructorId, name, type, day, startTime, endTime, weeklyHours) => {
     const updatedInstructor = await prisma.instructor.update({
         where: {
             id: instructorId
         },
         data: {
             name,
+            type,
             day,
             startTime,
-            endTime
+            endTime,
+            weeklyHours
         }
     })
     return updatedInstructor;
