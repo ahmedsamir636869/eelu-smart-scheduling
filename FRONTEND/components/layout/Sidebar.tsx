@@ -2,17 +2,18 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { 
-  LayoutDashboard, 
-  Zap, 
-  Database, 
-  Upload, 
-  Clock, 
-  Settings, 
+import {
+  LayoutDashboard,
+  Zap,
+  Database,
+  Upload,
+  Clock,
+  Settings,
   LogOut,
   X
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useAuth } from '@/contexts/AuthContext'
 
 const menuItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -24,7 +25,6 @@ const menuItems = [
 
 const generalItems = [
   { href: '/settings', label: 'Settings', icon: Settings },
-  { href: '/logout', label: 'Logout', icon: LogOut },
 ]
 
 interface SidebarProps {
@@ -34,6 +34,7 @@ interface SidebarProps {
 
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const pathname = usePathname()
+  const { logout } = useAuth()
 
   return (
     <>
@@ -69,7 +70,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
               {menuItems.map((item) => {
                 const Icon = item.icon
                 const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
-                
+
                 return (
                   <Link
                     key={item.href}
@@ -95,7 +96,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             <div className="space-y-1">
               {generalItems.map((item) => {
                 const Icon = item.icon
-                
+
                 return (
                   <Link
                     key={item.href}
@@ -108,6 +109,17 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
                   </Link>
                 )
               })}
+
+              <button
+                onClick={() => {
+                  logout()
+                  onClose()
+                }}
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-gray-400 hover:bg-gray-800 hover:text-white transition-colors text-left"
+              >
+                <LogOut className="w-5 h-5" />
+                <span>Logout</span>
+              </button>
             </div>
           </div>
         </nav>

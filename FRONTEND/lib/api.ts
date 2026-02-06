@@ -1,7 +1,7 @@
 import { getAccessToken, removeAccessToken, isTokenExpired } from './auth'
 import { extractData, extractErrorMessage } from './api-helpers'
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000/api/v1'
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000/api/v1'
 
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
@@ -117,7 +117,7 @@ async function request<T>(
           // If can't parse error, continue with normal error handling
         }
       }
-      
+
       let errorMessage = `API Error: ${response.statusText}`
       let errorData: any = null
 
@@ -140,7 +140,7 @@ async function request<T>(
     if (error instanceof ApiError) {
       throw error
     }
-    
+
     // Handle network errors (Failed to fetch)
     if (error instanceof TypeError && error.message.includes('fetch')) {
       console.error('Network error:', error)
@@ -150,7 +150,7 @@ async function request<T>(
         0
       )
     }
-    
+
     throw new ApiError(
       error instanceof Error ? error.message : 'Network error occurred',
       0

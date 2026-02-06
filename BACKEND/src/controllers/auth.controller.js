@@ -5,8 +5,8 @@ const authService = new AuthService();
 class AuthController {
   async registerController(req, res, next) {
     try {
-      const { email, password, name, role } = req.body;
-      const user = await authService.register(email, password, name, role);
+      const { email, password, name, role, isExpatriate } = req.body;
+      const user = await authService.register(email, password, name, role, isExpatriate);
       res.status(201).json({ message: 'User registered. Please check your email to verify.', user });
     } catch (error) {
       if (error.code === 'P2002') {
@@ -20,8 +20,8 @@ class AuthController {
 
   async loginController(req, res, next) {
     try {
-      const { email, password } = req.body;
-      const { accessToken, refreshToken, user } = await authService.login(email, password);
+      const { email, password, role, isExpatriate } = req.body;
+      const { accessToken, refreshToken, user } = await authService.login(email, password, role, isExpatriate);
 
       res.cookie('refreshToken', refreshToken, {
         httpOnly: true,

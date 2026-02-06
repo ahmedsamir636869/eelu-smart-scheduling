@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useParams } from 'next/navigation'
 import { Save, Plus } from 'lucide-react'
 import { MainLayout } from '@/components/layout/MainLayout'
 import { SummaryCards } from '@/components/data/PhysicalResources/SummaryCards'
@@ -13,14 +14,10 @@ import { PhysicalResource } from '@/types/api'
 import { campusApi, classroomApi, ApiError } from '@/lib/api'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 
-interface PhysicalResourcesPageProps {
-  params: {
-    branchId: string
-  }
-}
-
-export default function PhysicalResourcesPage({ params }: PhysicalResourcesPageProps) {
-  const [branchName, setBranchName] = useState(`Branch ${params.branchId}`)
+export default function PhysicalResourcesPage() {
+  const params = useParams()
+  const branchId = params.branchId as string
+  const [branchName, setBranchName] = useState('')
   const [labs, setLabs] = useState<PhysicalResource[]>([])
   const [rooms, setRooms] = useState<PhysicalResource[]>([])
   const [isLabModalOpen, setIsLabModalOpen] = useState(false)
@@ -30,19 +27,21 @@ export default function PhysicalResourcesPage({ params }: PhysicalResourcesPageP
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    fetchCampusAndClassrooms()
-  }, [params.branchId])
+    if (branchId) {
+      fetchCampusAndClassrooms()
+    }
+  }, [branchId])
 
   const fetchCampusAndClassrooms = async () => {
     try {
       setLoading(true)
       setError('')
-      
+
       // Fetch campus info
-      const campus = await campusApi.getById(params.branchId)
+      const campus = await campusApi.getById(branchId)
       if (campus) {
-        const displayName = campus.city 
-          ? `${campus.name} - ${campus.city}` 
+        const displayName = campus.city
+          ? `${campus.name} - ${campus.city}`
           : campus.name
         setBranchName(displayName)
       }
@@ -50,11 +49,11 @@ export default function PhysicalResourcesPage({ params }: PhysicalResourcesPageP
       // Fetch classrooms for this campus
       const campusName = campus?.name || ''
       const classrooms = await classroomApi.getAll(campusName)
-      
+
       // Separate labs and lecture halls
       const labResources: PhysicalResource[] = []
       const roomResources: PhysicalResource[] = []
-      
+
       classrooms.forEach((classroom: any) => {
         const resource: PhysicalResource = {
           id: classroom.id,
@@ -63,14 +62,14 @@ export default function PhysicalResourcesPage({ params }: PhysicalResourcesPageP
           capacity: classroom.capacity,
           campusId: classroom.campusId,
         }
-        
+
         if (classroom.type === 'LAB') {
           labResources.push(resource)
         } else {
           roomResources.push(resource)
         }
       })
-      
+
       setLabs(labResources)
       setRooms(roomResources)
     } catch (err) {
@@ -108,18 +107,18 @@ export default function PhysicalResourcesPage({ params }: PhysicalResourcesPageP
   const handleCreateLab = async (data: { name: string; capacity: number }) => {
     try {
       setError('')
-      const campus = await campusApi.getById(params.branchId)
+      const campus = await campusApi.getById(branchId)
       if (!campus) {
         throw new Error('Campus not found')
       }
-      
+
       const newLab = await classroomApi.create({
         name: data.name,
         capacity: data.capacity,
         type: 'LAB',
         campusName: campus.name,
       })
-      
+
       setLabs([...labs, {
         id: newLab.id,
         name: newLab.name,
@@ -141,18 +140,18 @@ export default function PhysicalResourcesPage({ params }: PhysicalResourcesPageP
   const handleCreateRoom = async (data: { name: string; capacity: number }) => {
     try {
       setError('')
-      const campus = await campusApi.getById(params.branchId)
+      const campus = await campusApi.getById(branchId)
       if (!campus) {
         throw new Error('Campus not found')
       }
-      
+
       const newRoom = await classroomApi.create({
         name: data.name,
         capacity: data.capacity,
         type: 'LECTURE_HALL',
         campusName: campus.name,
       })
-      
+
       setRooms([...rooms, {
         id: newRoom.id,
         name: newRoom.name,
@@ -254,7 +253,7 @@ export default function PhysicalResourcesPage({ params }: PhysicalResourcesPageP
 
   return (
     <ProtectedRoute>
-      <MainLayout title={`Data: Physical Resources - ${branchName}`}>
+      <MainLayout title={branchName ? `Data: Physical Resources - ${branchName}` : 'Data: Loading...'}>
         <div className="space-y-4 sm:space-y-6">
           {error && (
             <div className="p-3 bg-red-900/50 border border-red-700 rounded-lg text-red-200 text-sm">
@@ -263,17 +262,17 @@ export default function PhysicalResourcesPage({ params }: PhysicalResourcesPageP
           )}
 
           <Link
-            href={`/data/${params.branchId}`}
+            href={`/data/${branchId}`}
             className="text-teal-400 hover:text-teal-300 transition-colors inline-flex items-center gap-2 text-sm sm:text-base"
           >
-            ← Back to Data Management ({branchName})
+            ← Back to Data Management ({branchName || '...'})
           </Link>
 
           <div>
             <h2 className="text-white text-lg sm:text-xl font-bold uppercase mb-2">PHYSICAL DATA</h2>
           </div>
 
-          {loading ? (
+          {loading && !branchName ? (
             <div className="text-center py-8 text-gray-400">Loading physical resources...</div>
           ) : (
             <>
@@ -283,13 +282,13 @@ export default function PhysicalResourcesPage({ params }: PhysicalResourcesPageP
                 lectureRooms={lectureRooms}
               />
 
-        <Tabs tabs={tabs} defaultTab="labs" />
+              <Tabs tabs={tabs} defaultTab="labs" />
 
               <div className="flex justify-end">
-                <Button 
-                  variant="primary" 
-                  icon={<Save className="w-4 h-4" />} 
-                  onClick={handleSave} 
+                <Button
+                  variant="primary"
+                  icon={<Save className="w-4 h-4" />}
+                  onClick={handleSave}
                   className="w-full sm:w-auto"
                   disabled={saving}
                 >
@@ -300,21 +299,20 @@ export default function PhysicalResourcesPage({ params }: PhysicalResourcesPageP
           )}
         </div>
 
-      <CreateResourceModal
-        isOpen={isLabModalOpen}
-        onClose={() => setIsLabModalOpen(false)}
-        onCreate={handleCreateLab}
-        resourceType="lab"
-      />
+        <CreateResourceModal
+          isOpen={isLabModalOpen}
+          onClose={() => setIsLabModalOpen(false)}
+          onCreate={handleCreateLab}
+          resourceType="lab"
+        />
 
-      <CreateResourceModal
-        isOpen={isRoomModalOpen}
-        onClose={() => setIsRoomModalOpen(false)}
-        onCreate={handleCreateRoom}
-        resourceType="room"
-      />
-    </MainLayout>
+        <CreateResourceModal
+          isOpen={isRoomModalOpen}
+          onClose={() => setIsRoomModalOpen(false)}
+          onCreate={handleCreateRoom}
+          resourceType="room"
+        />
+      </MainLayout>
     </ProtectedRoute>
   )
 }
-

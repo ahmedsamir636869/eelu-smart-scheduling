@@ -1,113 +1,107 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-generator client {
-  provider = "prisma-client-js"
-}
-
-
 model User {
-  id           String     @id @default(cuid())
-  name         String
-  email        String     @unique
-  password     String
-  roles        UserRole[]     @default([INSTRUCTOR])
-  department   Department? @relation(fields: [departmentId], references: [id])
-  departmentId String?
-  sessions     Session[]
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-  
-  emailVerified Boolean  @default(false)
-  emailVerificationOtp String?
+  id                          String      @id @default(cuid())
+  name                        String
+  email                       String      @unique
+  password                    String
+  roles                       UserRole[]  @default([INSTRUCTOR])
+  isExpatriate                Boolean?    
+  createdAt                   DateTime    @default(now())
+  updatedAt                   DateTime    @updatedAt
+  emailVerified               Boolean     @default(false)
+  resetPasswordToken          String?     @unique
+  resetPasswordTokenExpires   DateTime?
+  resetPasswordOtp            String?
+  resetPasswordOtpExpires     DateTime?
+  emailVerificationOtp        String?
   emailVerificationOtpExpires DateTime?
-  
-  resetPasswordToken String?  @unique
-  resetPasswordTokenExpires DateTime?
-  resetPasswordOtp String? 
-  resetPasswordOtpExpires DateTime?
+  sessions                    Session[]
 }
 
 model Campus {
-  id       String    @id @default(cuid())
-  name     String    @unique
-  city     String
-  colleges College[] @relation(name: "CampusColleges")
+  id         String      @id @default(cuid())
+  name       String      @unique
+  city       String
   classrooms Classroom[]
+  colleges   College[]   @relation("CampusColleges")
 }
 
 model College {
   id          String       @id @default(cuid())
   name        String
-  campus      Campus?      @relation(name: "CampusColleges", fields: [campusId], references: [id])
   campusId    String?
-  departments Department[]
+  campus      Campus?      @relation("CampusColleges", fields: [campusId], references: [id])
   courses     Course[]
+  departments Department[]
 }
 
 model Department {
   id            String         @id @default(cuid())
   name          String
-  code          String         
-  college       College        @relation(fields: [collegeId], references: [id])
   collegeId     String
+  code          String
   courses       Course[]
-  users         User[]
+  college       College        @relation(fields: [collegeId], references: [id])
   instructors   Instructor[]
   studentGroups StudentGroup[]
 }
 
 model Course {
-  id             String     @id @default(cuid())
-  name           String
-  code           String     @unique
-  type           CourseType
-  days           Int
-  hoursPerDay    Int
-  year           Int
-  instructor     Instructor? @relation("AssignedInstructor", fields: [instructorId], references: [id])
-  instructorId   String?
-  department     Department @relation(fields: [departmentId], references: [id])
-  departmentId   String
-  college        College    @relation(fields: [collegeId], references: [id])
-  collegeId      String
-  sessions       Session[]
-  instructors    Instructor[] @relation("AdditionalInstructors")
+  id           String       @id @default(cuid())
+  code         String       @unique
+  departmentId String
+  name         String
+  type         CourseType
+  collegeId    String
+  days         Int
+  hoursPerDay  Int
+  instructorId String?
+  year         Int
+  college      College      @relation(fields: [collegeId], references: [id])
+  department   Department   @relation(fields: [departmentId], references: [id])
+  instructor   Instructor?  @relation("AssignedInstructor", fields: [instructorId], references: [id])
+  sessions     Session[]
+  instructors  Instructor[] @relation("AdditionalInstructors")
 }
 
 model Instructor {
-  id             String     @id @default(cuid())
-  name           String
-  type           instructorType
-  department     Department @relation(fields: [departmentId], references: [id])
-  departmentId   String
-  day            DayOfWeek?
-  startTime      DateTime?
-  endTime        DateTime?
-  weeklyHours    Int
-  assignedCourses Course[] @relation("AssignedInstructor")
-  otherCourses    Course[] @relation("AdditionalInstructors")
+  id              String     @id @default(cuid())
+  name            String
+  departmentId    String
+  day             DayOfWeek?
+  startTime       DateTime?
+  endTime         DateTime?
+  assignedCourses Course[]   @relation("AssignedInstructor")
+  department      Department @relation(fields: [departmentId], references: [id])
+  otherCourses    Course[]   @relation("AdditionalInstructors")
 }
 
 model StudentGroup {
-  id             String        @id @default(cuid())
-  name           String
-  department     Department @relation(fields: [departmentId], references: [id])
-  departmentId   String
-  year           Int
-  studentCount   Int
+  id           String     @id @default(cuid())
+  name         String
+  departmentId String
+  year         Int
+  studentCount Int
+  department   Department @relation(fields: [departmentId], references: [id])
 }
 
 model Classroom {
-  id             String        @id @default(cuid())
-  name           String
-  capacity       Int
-  type           ClassroomType
-  campusId       String
-  campus         Campus     @relation(fields: [campusId], references: [id])
-  sessions       Session[]
+  id       String        @id @default(cuid())
+  name     String
+  capacity Int
+  type     ClassroomType
+  campusId String
+  campus   Campus        @relation(fields: [campusId], references: [id])
+  sessions Session[]
+
   @@unique([name, campusId])
 }
 
@@ -120,21 +114,21 @@ model Schedule {
 }
 
 model Session {
-  id             String       @id @default(cuid())
-  name           String
-  type           SessionType  @default(LECTURE)
-  day            DayOfWeek?
-  startTime      DateTime?
-  endTime        DateTime?
-  studentCount   Int          @default(0)
-  course         Course       @relation(fields: [courseId], references: [id])
-  courseId       String
-  instructor     User?         @relation(fields: [instructorId], references: [id])
-  instructorId   String?
-  classroom      Classroom?    @relation(fields: [classroomId], references: [id])
-  classroomId    String?
-  schedule       Schedule?    @relation(fields: [scheduleId], references: [id])
-  scheduleId     String?
+  id           String      @id @default(cuid())
+  name         String
+  type         SessionType @default(LECTURE)
+  day          DayOfWeek?
+  startTime    DateTime?
+  endTime      DateTime?
+  studentCount Int         @default(0)
+  courseId     String
+  instructorId String?
+  classroomId  String?
+  scheduleId   String?
+  classroom    Classroom?  @relation(fields: [classroomId], references: [id])
+  course       Course      @relation(fields: [courseId], references: [id])
+  instructor   User?       @relation(fields: [instructorId], references: [id])
+  schedule     Schedule?   @relation(fields: [scheduleId], references: [id])
 }
 
 enum DayOfWeek {
@@ -164,10 +158,5 @@ enum ClassroomType {
 enum UserRole {
   INSTRUCTOR
   ADMIN
-  TA
-}
-
-enum instructorType {
-  DOCTOR
   TA
 }

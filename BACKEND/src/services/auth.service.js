@@ -6,7 +6,7 @@ const { generateTokens, verifyRefreshToken } = require('../utils/jwt.js');
 const { sendEmail } = require('../utils/mailer.js');
 
 class AuthService {
-  async register(email, password, name, role) {
+  async register(email, password, name, role, isExpatriate) {
     const hashedPassword = await hashPassword(password);
     
     const emailOtp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -18,6 +18,7 @@ class AuthService {
         name,
         password: hashedPassword,
         roles: [role], 
+        isExpatriate,
         emailVerificationOtp: emailOtp,
         emailVerificationOtpExpires: otpExpiry,
       },
@@ -36,7 +37,7 @@ class AuthService {
     return user;
   }
 
-  async login(email, password) {
+  async login(email, password, role, isExpatriate) {
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user || !user.emailVerified) {
       throw new Error('Invalid credentials or email not verified');
@@ -52,7 +53,7 @@ class AuthService {
     return {
       accessToken,
       refreshToken,
-      user: { id: user.id, email: user.email, roles: user.roles }, 
+      user: { id: user.id, email: user.email, roles: user.roles, isExpatriate: user.isExpatriate }, 
     };
   }
 

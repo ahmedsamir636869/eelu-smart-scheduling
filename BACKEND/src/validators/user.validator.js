@@ -21,7 +21,8 @@ const createUserSchema = Joi.object({
     Role: Joi.string().valid('ADMIN', 'INSTRUCTOR', 'TA').required().messages({
         'any.only': 'Invalid role type. Must be ADMIN, INSTRUCTOR, or TA'
     }),
-    employeeId: Joi.string().alphanum().optional()
+    employeeId: Joi.string().alphanum().optional(),
+    isExpatriate: Joi.boolean().optional()
 });
 
 const updateUserSchema = Joi.object({
@@ -30,7 +31,8 @@ const updateUserSchema = Joi.object({
     Email: Joi.string().email().optional(),
     Password: Joi.string().min(6).optional(),
     Role: Joi.string().valid('ADMIN', 'INSTRUCTOR', 'TA').optional(),
-    employeeId: Joi.string().alphanum().optional()
+    employeeId: Joi.string().alphanum().optional(),
+    isExpatriate: Joi.boolean().optional()
 });
 
 const userIdSchema = Joi.object({
