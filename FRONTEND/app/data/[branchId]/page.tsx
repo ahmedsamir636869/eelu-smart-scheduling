@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { Wrench, GraduationCap, ClipboardList, Settings, Upload, FileUp } from 'lucide-react'
+import { Wrench, GraduationCap, ClipboardList, Settings, Upload, FileUp, Calendar } from 'lucide-react'
 import { MainLayout } from '@/components/layout/MainLayout'
 import { BranchDataCard } from '@/components/data/BranchDataCard'
 import { campusApi, ApiError } from '@/lib/api'
@@ -112,6 +112,13 @@ export default function BranchDetailPage() {
                   icon={<Upload className="w-6 h-6" />}
                   iconColor="blue"
                   href={`/data/${branchId}/doctor-schedules`}
+                />
+                <BranchDataCard
+                  title="Course Schedules"
+                  description={`Create, edit, and publish weekly schedules (Manual or AI-generated) for ${branchName}`}
+                  icon={<Calendar className="w-6 h-6" />}
+                  iconColor="teal"
+                  href={`/data/${branchId}/schedules`}
                 />
                 <BranchDataCard
                   title="IMPORT SYSTEM DATA"
