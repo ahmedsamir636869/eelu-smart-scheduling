@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { MainLayout } from '@/components/layout/MainLayout'
 import { ScheduleFormulaCard } from '@/components/generate/ScheduleFormulaCard'
-import { CalculationLog } from '@/components/generate/CalculationLog'
+import { GeneratedScheduleView } from '@/components/generate/GeneratedScheduleView'
 import { ConflictResolutionCard } from '@/components/generate/ConflictResolutionCard'
 import { PerformanceInsightCard } from '@/components/generate/PerformanceInsightCard'
 import { PerformanceMetrics } from '@/types/api'
@@ -19,10 +19,12 @@ const mockMetrics: PerformanceMetrics = {
 export default function GeneratePage() {
   const [branches, setBranches] = useState<{ value: string; label: string }[]>([])
   const [selectedBranch, setSelectedBranch] = useState('')
-  const [log, setLog] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
+  const [loadingType, setLoadingType] = useState<'lectures' | 'sections' | null>(null)
   const [error, setError] = useState('')
   const [semester, setSemester] = useState('Fall 2024')
+  const [hasLecturesSchedule, setHasLecturesSchedule] = useState(false)
+  const [generatedSchedule, setGeneratedSchedule] = useState<any>(null)
 
   // Fetch campuses on mount
   useEffect(() => {
@@ -46,42 +48,119 @@ export default function GeneratePage() {
     fetchCampuses()
   }, [])
 
-  const addLog = (message: string) => {
-    setLog((prev) => [...prev, `[${new Date().toLocaleTimeString()}] ${message}`])
+  // Check if lectures schedule exists when branch or semester changes
+  useEffect(() => {
+    if (selectedBranch && semester) {
+      checkLecturesSchedule()
+    }
+  }, [selectedBranch, semester])
+
+  const checkLecturesSchedule = async () => {
+    try {
+      // Check if lectures schedule exists by fetching schedules
+      const schedules = await scheduleApi.getAll()
+      const lecturesSchedule = Array.isArray(schedules) 
+        ? schedules.find((s: any) => 
+            s.semester === semester && s.generatedBy === 'AI-GA-Lectures'
+          )
+        : null
+      setHasLecturesSchedule(!!lecturesSchedule)
+    } catch (err) {
+      // If check fails, assume no lectures schedule
+      console.warn('Failed to check lectures schedule:', err)
+      setHasLecturesSchedule(false)
+    }
   }
 
-  const handleRunCalculations = async () => {
+  const handleRunCalculations = async (scheduleType: 'lectures' | 'sections') => {
     if (!selectedBranch) {
       setError('Please select a branch')
       return
     }
 
     setLoading(true)
+    setLoadingType(scheduleType)
     setError('')
-    setLog([])
-    addLog('Starting schedule generation...')
-    addLog(`Selected branch: ${branches.find((b) => b.value === selectedBranch)?.label}`)
-    addLog(`Semester: ${semester}`)
+    setGeneratedSchedule(null)
 
     try {
-      addLog('Fetching data from database...')
-      addLog('Transforming data for AI service...')
-      addLog('Calling AI service...')
+      const result = await scheduleApi.generate(selectedBranch, semester, scheduleType)
 
-      const result = await scheduleApi.generate(selectedBranch, semester)
-
-      addLog(`✅ Schedule generated successfully!`)
-      addLog(`Total sessions created: ${result.totalSessions || 0}`)
-      addLog('Schedule saved to database.')
+      // The result should already contain sessions, but fetch full details if needed
+      if (result && result.id) {
+        try {
+          const fullSchedule = await scheduleApi.getById(result.id)
+          setGeneratedSchedule(fullSchedule)
+        } catch (fetchErr) {
+          // If fetching fails, use the result we got (it should have sessions)
+          setGeneratedSchedule(result)
+        }
+      } else if (result && result.schedule) {
+        // Handle case where response wraps schedule in 'schedule' property
+        setGeneratedSchedule(result.schedule)
+      } else {
+        setGeneratedSchedule(result)
+      }
+      
+      // Refresh lectures schedule check
+      if (scheduleType === 'lectures') {
+        setHasLecturesSchedule(true)
+      } else {
+        await checkLecturesSchedule()
+        // If sections were generated, refresh the schedule to show both lectures and sections
+        if (result && result.id) {
+          try {
+            const fullSchedule = await scheduleApi.getById(result.id)
+            setGeneratedSchedule(fullSchedule)
+          } catch (fetchErr) {
+            console.warn('Failed to refresh schedule:', fetchErr)
+          }
+        }
+      }
     } catch (err) {
+      const typeLabel = scheduleType === 'lectures' ? 'Lectures' : 'Sections'
       const errorMessage =
         err instanceof ApiError
           ? err.message
-          : 'Failed to generate schedule. Please try again.'
+          : `Failed to generate ${typeLabel.toLowerCase()} schedule. Please try again.`
       setError(errorMessage)
-      addLog(`❌ Error: ${errorMessage}`)
     } finally {
       setLoading(false)
+      setLoadingType(null)
+    }
+  }
+
+  // Fetch schedule when branch or semester changes
+  useEffect(() => {
+    if (selectedBranch && semester) {
+      fetchCurrentSchedule()
+    }
+  }, [selectedBranch, semester])
+
+  const fetchCurrentSchedule = async () => {
+    try {
+      const schedules = await scheduleApi.getAll()
+      const currentSchedule = Array.isArray(schedules)
+        ? schedules.find((s: any) => 
+            s.semester === semester && 
+            (s.generatedBy === 'AI-GA-Lectures' || s.generatedBy === 'AI-GA' || s.generatedBy === 'AI-GA-Sections')
+          )
+        : null
+      
+      if (currentSchedule && currentSchedule.id) {
+        try {
+          const fullSchedule = await scheduleApi.getById(currentSchedule.id)
+          setGeneratedSchedule(fullSchedule)
+        } catch (fetchErr) {
+          // Use the schedule from list if getById fails
+          setGeneratedSchedule(currentSchedule)
+        }
+      } else {
+        setGeneratedSchedule(null)
+      }
+    } catch (err) {
+      console.warn('Failed to fetch current schedule:', err)
+      setGeneratedSchedule(null)
     }
   }
 
@@ -98,19 +177,25 @@ export default function GeneratePage() {
             {error}
           </div>
         )}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-          <ScheduleFormulaCard
-            branches={branches}
-            selectedBranch={selectedBranch}
-            onBranchChange={setSelectedBranch}
-            onRunCalculations={handleRunCalculations}
-            loading={loading}
-            semester={semester}
-            onSemesterChange={setSemester}
-          />
-          <ConflictResolutionCard onResolveConflicts={handleResolveConflicts} />
-          <CalculationLog log={log} />
-          <PerformanceInsightCard metrics={mockMetrics} />
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+            <ScheduleFormulaCard
+              branches={branches}
+              selectedBranch={selectedBranch}
+              onBranchChange={setSelectedBranch}
+              onRunCalculations={handleRunCalculations}
+              loading={loading}
+              loadingType={loadingType}
+              semester={semester}
+              onSemesterChange={setSemester}
+              hasLecturesSchedule={hasLecturesSchedule}
+            />
+            <ConflictResolutionCard onResolveConflicts={handleResolveConflicts} />
+            <PerformanceInsightCard metrics={mockMetrics} />
+          </div>
+          
+          {/* Generated Schedule View */}
+          <GeneratedScheduleView schedule={generatedSchedule} loading={loading} />
         </div>
       </MainLayout>
     </ProtectedRoute>

@@ -2,7 +2,7 @@
 Pydantic models for the GA Scheduler API.
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import Optional, List, Dict, Any
 from enum import Enum
 
@@ -35,6 +35,14 @@ class Course(BaseModel):
     year: int = Field(..., alias="Year")
     type: RoomType = Field(..., alias="Type")
     duration: Optional[str] = Field(None, alias="Duration")
+
+    @field_validator('days')
+    @classmethod
+    def validate_days(cls, v):
+        """Validate that days is between 1 and 6."""
+        if v < 1 or v > 6:
+            raise ValueError(f'Days must be between 1 and 6, got {v}')
+        return v
 
     class Config:
         populate_by_name = True
@@ -84,6 +92,7 @@ class ScheduleEntry(BaseModel):
     end_time: str
     department: str
     major: str
+    year: int
 
 
 class RoomInput(BaseModel):
@@ -105,6 +114,14 @@ class CourseInput(BaseModel):
     Instructor_ID: str
     Year: int
     Type: str  # "Lab" or "Lecture"
+
+    @field_validator('Days')
+    @classmethod
+    def validate_days(cls, v):
+        """Validate that Days is between 1 and 6."""
+        if v < 1 or v > 6:
+            raise ValueError(f'Days must be between 1 and 6, got {v}')
+        return v
 
 
 class DoctorInput(BaseModel):

@@ -1,4 +1,4 @@
-const {createUser, getAllUsers, getUserById, updateUser, deleteUser} = require('../services/user.service');
+const {createUser, getAllUsers, getUserById, updateUser, deleteUser, updateProfile} = require('../services/user.service');
 const STATUS_MESSAGES = require('../constants/status.messages');
 
 
@@ -82,5 +82,20 @@ const deleteUserController = async (req, res) => {
     }
 }
 
+const updateProfileController = async (req, res) => {
+    const userId = req.user.id; // Get from authenticated user
+    try{
+        const updatedUser = await updateProfile(userId, req.body);
+        return res.status(STATUS_MESSAGES.OK).json({
+            user: updatedUser,
+            message: 'Profile updated successfully'
+        })
+    }catch(error){
+        return res.status(STATUS_MESSAGES.BAD_REQUEST).json({
+            message: 'Failed to update profile',
+            error: error.message
+        })
+    }
+}
 
-module.exports = {createUserController, getAllUsersController, getUserByIdController, updateUserController, deleteUserController};
+module.exports = {createUserController, getAllUsersController, getUserByIdController, updateUserController, deleteUserController, updateProfileController};

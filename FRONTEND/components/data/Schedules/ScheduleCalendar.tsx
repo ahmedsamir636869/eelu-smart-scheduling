@@ -22,12 +22,63 @@ export function ScheduleCalendar({ events, onEventMove, isEditable = true }: Sch
     const [draggedEvent, setDraggedEvent] = useState<ScheduleEvent | null>(null)
     const [dragOverSlot, setDragOverSlot] = useState<{ day: DayOfWeek; timeSlot: string } | null>(null)
 
-    // Get events for a specific day and time slot
+    // Helper: parse "HH:MM" to minutes since midnight
+    const parseTimeToMinutes = (time: string): number => {
+        const [h, m] = time.split(':').map(Number)
+        return h * 60 + (m || 0)
+    }
+
+    // Get events for a specific day and time slot (flexible matching: event falls within slot range)
     const getEventsForSlot = useCallback(
-        (day: DayOfWeek, slotStartTime: string) => {
-            return events.filter(
-                (event) => event.day === day && event.startTime === slotStartTime
-            )
+        (day: DayOfWeek, slotStartTime: string, slotEndTime: string) => {
+            if (!events || events.length === 0) return []
+            
+            const slotStart = parseTimeToMinutes(slotStartTime)
+            const slotEnd = parseTimeToMinutes(slotEndTime)
+            const slotIdx = TIME_SLOTS.findIndex(s => s.startTime === slotStartTime)
+            const nextSlotStart = slotIdx < TIME_SLOTS.length - 1
+                ? parseTimeToMinutes(TIME_SLOTS[slotIdx + 1].startTime)
+                : slotEnd + 60 // after last slot
+
+            const matchedEvents = events.filter((event) => {
+                if (!event || !event.day || !event.startTime) return false
+                
+                // Normalize day names for comparison (case-insensitive, handle variations)
+                const eventDay = String(event.day).trim()
+                const slotDay = String(day).trim()
+                
+                // Direct match
+                if (eventDay.toLowerCase() === slotDay.toLowerCase()) {
+                    // Parse event times
+                    const eventStart = parseTimeToMinutes(event.startTime)
+                    
+                    // Debug logging
+                    if (process.env.NODE_ENV === 'development' && slotStart === 480) {
+                        console.log(`Checking ${event.courseCode} (${event.startTime}) for slot ${slotStartTime}-${slotEndTime}:`, {
+                            eventStart,
+                            slotStart,
+                            nextSlotStart,
+                            inRange: eventStart >= slotStart && eventStart < nextSlotStart
+                        })
+                    }
+                    
+                    // Event belongs to this slot if it starts within the slot range
+                    // For consecutive slots: eventStart >= slotStart && eventStart < nextSlotStart
+                    if (eventStart >= slotStart && eventStart < nextSlotStart) {
+                        return true
+                    }
+                    
+                    // Also check if event overlaps with the slot (for events that span multiple slots)
+                    const eventEnd = parseTimeToMinutes(event.endTime || event.startTime)
+                    if (eventStart < slotEnd && eventEnd > slotStart) {
+                        return true
+                    }
+                }
+                
+                return false
+            })
+            
+            return matchedEvents
         },
         [events]
     )
@@ -72,26 +123,26 @@ export function ScheduleCalendar({ events, onEventMove, isEditable = true }: Sch
     }
 
     return (
-        <div className="overflow-x-auto">
-            <div className="min-w-[900px]">
+        <div className="w-full overflow-x-auto">
+            <div className="min-w-[900px] w-full inline-block">
                 {/* Calendar Grid */}
-                <div className="bg-gray-800 rounded-xl border border-gray-700 overflow-hidden">
-                    {/* Header Row - Time Slots */}
-                    <div className="grid" style={{ gridTemplateColumns: '120px repeat(7, 1fr)' }}>
+                <div className="bg-gray-800 rounded-xl border border-gray-700">
+                    {/* Header Row - Time Slots (Sticky) */}
+                    <div className="sticky top-0 z-20 grid bg-gray-800" style={{ gridTemplateColumns: `120px repeat(${TIME_SLOTS.length}, 1fr)` }}>
                         {/* Empty corner cell */}
-                        <div className="bg-gray-900 p-3 border-b border-r border-gray-700 flex items-center justify-center">
+                        <div className="bg-gray-900 p-3 border-b border-r border-gray-700 flex items-center justify-center sticky left-0 z-30 shadow-lg">
                             <Clock className="w-5 h-5 text-gray-400" />
                         </div>
                         {/* Time slot headers */}
-                        {TIME_SLOTS.map((slot) => (
+                        {TIME_SLOTS.map((slot, idx) => (
                             <div
                                 key={slot.id}
-                                className="bg-gray-900 p-3 border-b border-r border-gray-700 text-center last:border-r-0"
+                                className="bg-gray-900 p-3 border-b border-r border-gray-700 text-center last:border-r-0 shadow-lg"
                             >
-                                <div className="text-teal-400 font-semibold text-sm">
+                                <div className="text-teal-400 font-semibold text-sm whitespace-nowrap">
                                     {slot.startTime}
                                 </div>
-                                <div className="text-gray-500 text-xs">
+                                <div className="text-gray-500 text-xs whitespace-nowrap">
                                     {slot.endTime}
                                 </div>
                             </div>
@@ -103,22 +154,22 @@ export function ScheduleCalendar({ events, onEventMove, isEditable = true }: Sch
                         <div
                             key={day}
                             className="grid"
-                            style={{ gridTemplateColumns: '120px repeat(7, 1fr)' }}
+                            style={{ gridTemplateColumns: `120px repeat(${TIME_SLOTS.length}, 1fr)` }}
                         >
-                            {/* Day Label */}
+                            {/* Day Label (Sticky on horizontal scroll) */}
                             <div
                                 className={cn(
-                                    'p-3 border-r border-gray-700 flex items-center justify-center',
+                                    'p-3 border-r border-gray-700 flex items-center justify-center sticky left-0 z-[15] shadow-lg',
                                     dayIndex % 2 === 0 ? 'bg-gray-850' : 'bg-gray-800',
                                     dayIndex < DAYS_OF_WEEK.length - 1 && 'border-b'
                                 )}
                             >
-                                <span className="text-white font-medium text-sm">{DAY_LABELS[day]}</span>
+                                <span className="text-white font-medium text-sm whitespace-nowrap">{DAY_LABELS[day]}</span>
                             </div>
 
                             {/* Time Slots for this day */}
                             {TIME_SLOTS.map((slot, slotIndex) => {
-                                const slotEvents = getEventsForSlot(day, slot.startTime)
+                                const slotEvents = getEventsForSlot(day, slot.startTime, slot.endTime)
                                 const isDropTarget =
                                     dragOverSlot?.day === day && dragOverSlot?.timeSlot === slot.startTime
 
@@ -126,26 +177,33 @@ export function ScheduleCalendar({ events, onEventMove, isEditable = true }: Sch
                                     <div
                                         key={`${day}-${slot.id}`}
                                         className={cn(
-                                            'min-h-[100px] p-1.5 border-r border-gray-700 last:border-r-0 transition-all duration-200',
+                                            'min-h-[120px] p-1.5 border-r border-gray-700 last:border-r-0 transition-all duration-200',
                                             dayIndex % 2 === 0 ? 'bg-gray-850' : 'bg-gray-800',
                                             dayIndex < DAYS_OF_WEEK.length - 1 && 'border-b',
                                             isDropTarget && 'bg-teal-500/20 border-2 border-dashed border-teal-500',
                                             isEditable && 'hover:bg-gray-700/50'
                                         )}
+                                        style={{ 
+                                            minHeight: slotEvents.length > 0 ? `${Math.max(120, slotEvents.length * 140)}px` : '120px'
+                                        }}
                                         onDragOver={(e) => handleDragOver(e, day, slot.startTime)}
                                         onDragLeave={handleDragLeave}
                                         onDrop={(e) => handleDrop(e, day, slot.startTime)}
                                     >
-                                        {slotEvents.map((event) => (
-                                            <EventCard
-                                                key={event.id}
-                                                event={event}
-                                                isDragging={draggedEvent?.id === event.id}
-                                                isEditable={isEditable}
-                                                onDragStart={(e) => handleDragStart(e, event)}
-                                                onDragEnd={handleDragEnd}
-                                            />
-                                        ))}
+                                        {slotEvents.length > 0 ? (
+                                            <div className="flex flex-col gap-1.5">
+                                                {slotEvents.map((event) => (
+                                                    <EventCard
+                                                        key={event.id}
+                                                        event={event}
+                                                        isDragging={draggedEvent?.id === event.id}
+                                                        isEditable={isEditable}
+                                                        onDragStart={(e) => handleDragStart(e, event)}
+                                                        onDragEnd={handleDragEnd}
+                                                    />
+                                                ))}
+                                            </div>
+                                        ) : null}
                                     </div>
                                 )
                             })}

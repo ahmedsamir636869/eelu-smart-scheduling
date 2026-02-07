@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { Wrench, GraduationCap, ClipboardList, Settings, Upload, FileUp, Calendar } from 'lucide-react'
+import { Wrench, GraduationCap, ClipboardList, Settings, Upload, FileUp, Calendar, BookOpen } from 'lucide-react'
 import { MainLayout } from '@/components/layout/MainLayout'
 import { BranchDataCard } from '@/components/data/BranchDataCard'
 import { campusApi, ApiError } from '@/lib/api'
@@ -95,6 +95,13 @@ export default function BranchDetailPage() {
                   icon={<ClipboardList className="w-6 h-6" />}
                   iconColor="red"
                   href={`/data/${branchId}/instructors`}
+                />
+                <BranchDataCard
+                  title="Courses"
+                  description={`Manage all courses, their details, and assignments for ${branchName}`}
+                  icon={<BookOpen className="w-6 h-6" />}
+                  iconColor="purple"
+                  href={`/data/${branchId}/courses`}
                 />
                 <BranchDataCard
                   title="SYSTEM CONFIGURATION"

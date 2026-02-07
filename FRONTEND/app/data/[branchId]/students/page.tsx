@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
 import { Save, Plus } from 'lucide-react'
 import { MainLayout } from '@/components/layout/MainLayout'
@@ -13,19 +13,30 @@ import { campusApi, studentGroupApi, collegeApi, departmentApi, ApiError } from 
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 
 interface StudentsPageProps {
-  params: {
+  params: Promise<{
     branchId: string
-  }
+  }>
 }
 
 interface Section {
   id: number
   numberOfStudents: number
   assignedGroup: string
+  studentGroupId?: string // Add student group ID for deletion
+  department?: {
+    id: string
+    name: string
+    code?: string
+  }
+  college?: {
+    id: string
+    name: string
+  }
 }
 
 export default function StudentsPage({ params }: StudentsPageProps) {
-  const [branchName, setBranchName] = useState(`Branch ${params.branchId}`)
+  const { branchId } = use(params)
+  const [branchName, setBranchName] = useState(`Branch ${branchId}`)
   const [selectedCollege, setSelectedCollege] = useState<'IT' | 'Business'>('IT')
   const [selectedLevel, setSelectedLevel] = useState<number>(1)
   const [sections, setSections] = useState<Section[]>([])
@@ -39,8 +50,10 @@ export default function StudentsPage({ params }: StudentsPageProps) {
   const [campusData, setCampusData] = useState<any>(null)
 
   useEffect(() => {
-    fetchCampusAndStudentGroups()
-  }, [params.branchId, selectedLevel])
+    if (branchId) {
+      fetchCampusAndStudentGroups()
+    }
+  }, [branchId, selectedLevel])
 
   // Update selected college when colleges change or selection changes
   useEffect(() => {
@@ -99,7 +112,7 @@ export default function StudentsPage({ params }: StudentsPageProps) {
       setError('')
       
       // Fetch campus info (includes colleges)
-      const campus = await campusApi.getById(params.branchId)
+      const campus = await campusApi.getById(branchId)
       if (campus) {
         const displayName = campus.city 
           ? `${campus.name} - ${campus.city}` 
@@ -123,6 +136,16 @@ export default function StudentsPage({ params }: StudentsPageProps) {
         id: index + 1,
         numberOfStudents: group.studentCount || 0,
         assignedGroup: group.name || `Group ${index + 1}`,
+        studentGroupId: group.id, // Store the actual student group ID
+        department: group.department ? {
+          id: group.department.id,
+          name: group.department.name,
+          code: group.department.code
+        } : undefined,
+        college: group.department?.college ? {
+          id: group.department.college.id,
+          name: group.department.college.name
+        } : undefined
       }))
       
       setSections(transformedSections)
@@ -180,6 +203,62 @@ export default function StudentsPage({ params }: StudentsPageProps) {
     }
   }
 
+  const handleDelete = async (sectionNumber: number) => {
+    const section = sections.find(s => s.id === sectionNumber)
+    if (!section) {
+      return
+    }
+
+    if (!confirm(`Are you sure you want to delete section "${section.assignedGroup}"? This will permanently remove the student group.`)) {
+      return
+    }
+
+    try {
+      setError('')
+      
+      // If we have the student group ID, use it; otherwise find it
+      let studentGroupId = section.studentGroupId
+      
+      if (!studentGroupId) {
+        // Fetch student groups and find the matching one
+        const studentGroups = await studentGroupApi.getAll()
+        const filteredGroups = studentGroups.filter((group: any) => group.year === selectedLevel)
+        const groupToDelete = filteredGroups[sectionNumber - 1]
+        
+        if (!groupToDelete) {
+          throw new Error('Student group not found')
+        }
+        
+        studentGroupId = groupToDelete.id
+      }
+
+      // Delete the student group
+      await studentGroupApi.delete(studentGroupId)
+      
+      // Refresh the sections list
+      await fetchCampusAndStudentGroups()
+      
+      // Recalculate total enrollment after deleting a section
+      const allStudentGroups = await studentGroupApi.getAll()
+      if (campusData?.colleges && campusData.colleges.length > 0) {
+        const collegeIds = campusData.colleges.map((c: any) => c.id)
+        const filteredGroups = allStudentGroups.filter((group: any) => 
+          group.department?.college && collegeIds.includes(group.department.college.id)
+        )
+        const total = filteredGroups.reduce((sum: number, group: any) => 
+          sum + (group.studentCount || 0), 0
+        )
+        setTotalBranchEnrollment(total)
+      }
+    } catch (err) {
+      const errorMessage =
+        err instanceof ApiError
+          ? err.message
+          : 'Failed to delete section. Please try again.'
+      setError(errorMessage)
+    }
+  }
+
   const handleSave = async () => {
     try {
       setSaving(true)
@@ -213,7 +292,7 @@ export default function StudentsPage({ params }: StudentsPageProps) {
       // If we don't have the selected college or it doesn't match, search for it
       if (!collegeObj || collegeObj.name.toLowerCase() !== data.college.toLowerCase()) {
         // Refresh colleges list to ensure we have the latest data
-        const campusColleges = await collegeApi.getAll(params.branchId)
+        const campusColleges = await collegeApi.getAll(branchId)
         
         // Find college by name - try multiple matching strategies
         collegeObj = campusColleges.find((c: any) => 
@@ -243,7 +322,7 @@ export default function StudentsPage({ params }: StudentsPageProps) {
       }
       
       if (!collegeObj) {
-        const campusColleges = await collegeApi.getAll(params.branchId)
+        const campusColleges = await collegeApi.getAll(branchId)
         const availableColleges = campusColleges.map((c: any) => c.name).join(', ') || 'None'
         throw new Error(
           `College "${data.college}" not found. Available colleges: ${availableColleges}. Please create the college first or select a different one.`
@@ -274,6 +353,19 @@ export default function StudentsPage({ params }: StudentsPageProps) {
 
       // Refresh the sections list
       await fetchCampusAndStudentGroups()
+      
+      // Recalculate total enrollment after creating a new section
+      const allStudentGroups = await studentGroupApi.getAll()
+      if (campusData?.colleges && campusData.colleges.length > 0) {
+        const collegeIds = campusData.colleges.map((c: any) => c.id)
+        const filteredGroups = allStudentGroups.filter((group: any) => 
+          group.department?.college && collegeIds.includes(group.department.college.id)
+        )
+        const total = filteredGroups.reduce((sum: number, group: any) => 
+          sum + (group.studentCount || 0), 0
+        )
+        setTotalBranchEnrollment(total)
+      }
     } catch (err) {
       const errorMessage =
         err instanceof ApiError
@@ -287,7 +379,46 @@ export default function StudentsPage({ params }: StudentsPageProps) {
     }
   }
 
-  const totalEnrollment = sections.reduce((sum, section) => sum + section.numberOfStudents, 0)
+  // Calculate total enrollment for ALL students across ALL colleges and levels for this branch
+  const [totalBranchEnrollment, setTotalBranchEnrollment] = useState<number>(0)
+
+  useEffect(() => {
+    const calculateTotalEnrollment = async () => {
+      try {
+        // Fetch ALL student groups (not filtered by college/level)
+        const allStudentGroups = await studentGroupApi.getAll()
+        
+        // Filter by campus colleges if available
+        let filteredGroups = allStudentGroups
+        if (campusData?.colleges && campusData.colleges.length > 0) {
+          const collegeIds = campusData.colleges.map((c: any) => c.id)
+          filteredGroups = allStudentGroups.filter((group: any) => 
+            group.department?.college && collegeIds.includes(group.department.college.id)
+          )
+        }
+        
+        // Sum all student counts
+        const total = filteredGroups.reduce((sum: number, group: any) => 
+          sum + (group.studentCount || 0), 0
+        )
+        setTotalBranchEnrollment(total)
+      } catch (err) {
+        console.error('Error calculating total enrollment:', err)
+        // Fallback to current sections total
+        setTotalBranchEnrollment(sections.reduce((sum, section) => sum + section.numberOfStudents, 0))
+      }
+    }
+
+    if (branchId && campusData) {
+      calculateTotalEnrollment()
+    } else if (branchId) {
+      // If campusData is not loaded yet, calculate from current sections as fallback
+      setTotalBranchEnrollment(sections.reduce((sum, section) => sum + section.numberOfStudents, 0))
+    }
+  }, [branchId, campusData])
+
+  // Current filtered enrollment (for display purposes)
+  const currentEnrollment = sections.reduce((sum, section) => sum + section.numberOfStudents, 0)
 
   return (
     <ProtectedRoute>
@@ -300,7 +431,7 @@ export default function StudentsPage({ params }: StudentsPageProps) {
           )}
 
           <Link
-            href={`/data/${params.branchId}`}
+            href={`/data/${branchId}`}
             className="text-teal-400 hover:text-teal-300 transition-colors inline-flex items-center gap-2 text-sm sm:text-base"
           >
             ← Back to Data Management ({branchName})
@@ -312,7 +443,7 @@ export default function StudentsPage({ params }: StudentsPageProps) {
             </div>
             <Card className="bg-gray-800 w-full sm:w-auto">
               <p className="text-gray-400 text-xs sm:text-sm mb-1">TOTAL BRANCH ENROLLMENT</p>
-              <p className="text-blue-400 text-xl sm:text-2xl font-bold">{totalEnrollment} Students</p>
+              <p className="text-blue-400 text-xl sm:text-2xl font-bold">{totalBranchEnrollment} Students</p>
             </Card>
           </div>
 
@@ -433,10 +564,12 @@ export default function StudentsPage({ params }: StudentsPageProps) {
                         sectionNumber={section.id}
                         numberOfStudents={section.numberOfStudents}
                         assignedGroup={section.assignedGroup}
-                        college={selectedCollege}
+                        college={section.college?.name || selectedCollege}
                         level={selectedLevel}
+                        department={section.department?.name}
                         onStudentsChange={handleStudentsChange}
                         onGroupChange={handleGroupChange}
+                        onDelete={handleDelete}
                       />
                     ))}
                   </div>

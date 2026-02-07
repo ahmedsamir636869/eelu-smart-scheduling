@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, use } from 'react'
 import Link from 'next/link'
 import { MainLayout } from '@/components/layout/MainLayout'
 import { FileUploadSection } from '@/components/data/DoctorSchedules/FileUploadSection'
@@ -9,9 +9,9 @@ import { campusApi, ApiError } from '@/lib/api'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 
 interface DoctorSchedulesPageProps {
-  params: {
+  params: Promise<{
     branchId: string
-  }
+  }>
 }
 
 interface Schedule {
@@ -24,22 +24,25 @@ interface Schedule {
 }
 
 export default function DoctorSchedulesPage({ params }: DoctorSchedulesPageProps) {
-  const [branchName, setBranchName] = useState(`Branch ${params.branchId}`)
+  const { branchId } = use(params)
+  const [branchName, setBranchName] = useState(`Branch ${branchId}`)
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    fetchCampusInfo()
+    if (branchId) {
+      fetchCampusInfo()
+    }
     // Note: Doctor schedules endpoint doesn't exist yet in backend
     // This is a placeholder for when the endpoint is created
-  }, [params.branchId])
+  }, [branchId])
 
   const fetchCampusInfo = async () => {
     try {
       setLoading(true)
       setError('')
-      const campus = await campusApi.getById(params.branchId)
+      const campus = await campusApi.getById(branchId)
       if (campus) {
         const displayName = campus.city 
           ? `${campus.name} - ${campus.city}` 
@@ -129,7 +132,7 @@ export default function DoctorSchedulesPage({ params }: DoctorSchedulesPageProps
           )}
 
           <Link
-            href={`/data/${params.branchId}`}
+            href={`/data/${branchId}`}
             className="text-teal-400 hover:text-teal-300 transition-colors inline-flex items-center gap-2"
           >
             ← Back to Data Management ({branchName})

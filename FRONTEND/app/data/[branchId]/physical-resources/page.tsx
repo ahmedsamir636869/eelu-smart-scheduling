@@ -170,6 +170,42 @@ export default function PhysicalResourcesPage() {
     }
   }
 
+  const handleDeleteLab = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this lab?')) {
+      return
+    }
+
+    try {
+      setError('')
+      await classroomApi.delete(id)
+      setLabs(labs.filter(lab => lab.id !== id))
+    } catch (err) {
+      const errorMessage =
+        err instanceof ApiError
+          ? err.message
+          : 'Failed to delete lab. Please try again.'
+      setError(errorMessage)
+    }
+  }
+
+  const handleDeleteRoom = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this lecture room?')) {
+      return
+    }
+
+    try {
+      setError('')
+      await classroomApi.delete(id)
+      setRooms(rooms.filter(room => room.id !== id))
+    } catch (err) {
+      const errorMessage =
+        err instanceof ApiError
+          ? err.message
+          : 'Failed to delete lecture room. Please try again.'
+      setError(errorMessage)
+    }
+  }
+
   const handleSave = async () => {
     try {
       setSaving(true)
@@ -211,6 +247,7 @@ export default function PhysicalResourcesPage() {
                 name={lab.name}
                 capacity={lab.capacity}
                 onCapacityChange={handleLabCapacityChange}
+                onDelete={handleDeleteLab}
               />
             ))}
           </div>
@@ -239,6 +276,7 @@ export default function PhysicalResourcesPage() {
                 name={room.name}
                 capacity={room.capacity}
                 onCapacityChange={handleRoomCapacityChange}
+                onDelete={handleDeleteRoom}
               />
             ))}
           </div>

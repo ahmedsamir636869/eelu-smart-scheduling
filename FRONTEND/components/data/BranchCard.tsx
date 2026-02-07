@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { MapPin, X, Edit } from 'lucide-react'
+import { MapPin, X, Edit, Trash2 } from 'lucide-react'
 import { Card } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Branch } from '@/types/api'
@@ -8,9 +8,10 @@ import { cn } from '@/lib/utils'
 interface BranchCardProps {
   branch: Branch
   onEdit?: (branch: Branch) => void
+  onDelete?: (branch: Branch) => void
 }
 
-export function BranchCard({ branch, onEdit }: BranchCardProps) {
+export function BranchCard({ branch, onEdit, onDelete }: BranchCardProps) {
   const colleges = branch.colleges || []
 
   const handleEditClick = (e: React.MouseEvent) => {
@@ -21,17 +22,38 @@ export function BranchCard({ branch, onEdit }: BranchCardProps) {
     }
   }
 
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (onDelete) {
+      onDelete(branch)
+    }
+  }
+
   return (
     <Link href={`/data/${branch.id}`} className="block">
       <Card className="hover:border-teal-600/50 transition-colors relative">
-        {onEdit && (
-          <button
-            onClick={handleEditClick}
-            className="absolute top-3 right-3 text-gray-400 hover:text-teal-400 transition-colors z-10"
-            title="Edit branch"
-          >
-            <Edit className="w-4 h-4" />
-          </button>
+        {(onEdit || onDelete) && (
+          <div className="absolute top-3 right-3 flex gap-2 z-10">
+            {onEdit && (
+              <button
+                onClick={handleEditClick}
+                className="text-gray-400 hover:text-teal-400 transition-colors"
+                title="Edit branch"
+              >
+                <Edit className="w-4 h-4" />
+              </button>
+            )}
+            {onDelete && (
+              <button
+                onClick={handleDeleteClick}
+                className="text-gray-400 hover:text-red-400 transition-colors"
+                title="Delete branch"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         )}
         <div className="flex items-start justify-between pr-8">
           <div className="flex items-start gap-3 flex-1">

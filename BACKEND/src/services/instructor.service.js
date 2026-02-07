@@ -16,7 +16,17 @@ const createInstructor = async (name, type, departmentId, day, startTime, endTim
 }
 
 const getAllInstructors = async () => {
-    const instructors = await prisma.instructor.findMany();
+    const instructors = await prisma.instructor.findMany({
+        include: {
+            assignedCourses: {
+                select: {
+                    id: true,
+                    name: true,
+                    code: true
+                }
+            }
+        }
+    });
     return instructors;
 }
 
@@ -24,6 +34,15 @@ const getInstructorById = async (instructorId) => {
     const instructor = await prisma.instructor.findUnique({
         where: {
             id: instructorId
+        },
+        include: {
+            assignedCourses: {
+                select: {
+                    id: true,
+                    name: true,
+                    code: true
+                }
+            }
         }
     })
     return instructor;

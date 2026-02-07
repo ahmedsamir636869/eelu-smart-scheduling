@@ -16,6 +16,7 @@ const scheduleRoutes = require("./schedule.routes");
 const studentGroupRoutes = require("./studentGroup.routes");
 const instructorRoutes = require("./instructor.routes");
 const userRoutes = require("./user.routes");
+const importRoutes = require("./import.routes");
 
 
 router.use("/auth", authRoutes);
@@ -30,5 +31,6 @@ router.use("/schedule", scheduleRoutes);
 router.use("/studentGroup", studentGroupRoutes);
 router.use("/instructor", instructorRoutes);
 router.use("/user", userRoutes);
+router.use("/import", importRoutes);
 
 module.exports = router;

@@ -10,7 +10,8 @@ import {
   Clock,
   Settings,
   LogOut,
-  X
+  X,
+  User
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
@@ -24,6 +25,7 @@ const menuItems = [
 ]
 
 const generalItems = [
+  { href: '/profile', label: 'Profile', icon: User },
   { href: '/settings', label: 'Settings', icon: Settings },
 ]
 

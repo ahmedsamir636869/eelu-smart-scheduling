@@ -1,0 +1,459 @@
+@startuml EELU Smart Scheduling System Class Diagram
+
+!define PKG_BACKEND pkg "Backend Services"
+!define PKG_AI pkg "AI Service"
+!define PKG_FRONTEND pkg "Frontend Components"
+!define PKG_MODELS pkg "Database Models"
+
+package PKG_MODELS {
+    class User {
+        +String id
+        +String name
+        +String email
+        +String password
+        +UserRole[] roles
+        +Boolean isExpatriate
+        +DateTime createdAt
+        +DateTime updatedAt
+        +Boolean emailVerified
+        +String resetPasswordToken
+        +DateTime resetPasswordTokenExpires
+        +String emailVerificationOtp
+        +DateTime emailVerificationOtpExpires
+        +Session[] sessions
+    }
+
+    class Campus {
+        +String id
+        +String name
+        +String city
+        +Classroom[] classrooms
+        +College[] colleges
+    }
+
+    class College {
+        +String id
+        +String name
+        +String campusId
+        +Course[] courses
+        +Department[] departments
+    }
+
+    class Department {
+        +String id
+        +String name
+        +String collegeId
+        +String code
+        +Course[] courses
+        +Instructor[] instructors
+        +StudentGroup[] studentGroups
+    }
+
+    class Course {
+        +String id
+        +String code
+        +String departmentId
+        +String name
+        +CourseType type
+        +String collegeId
+        +Int days
+        +Int hoursPerDay
+        +String instructorId
+        +Int year
+        +Session[] sessions
+    }
+
+    class Instructor {
+        +String id
+        +String name
+        +String departmentId
+        +DayOfWeek day
+        +DateTime startTime
+        +DateTime endTime
+        +Course[] assignedCourses
+        +Course[] otherCourses
+    }
+
+    class StudentGroup {
+        +String id
+        +String name
+        +String departmentId
+        +Int year
+        +Int studentCount
+    }
+
+    class Classroom {
+        +String id
+        +String name
+        +Int capacity
+        +ClassroomType type
+        +String campusId
+        +Session[] sessions
+    }
+
+    class Schedule {
+        +String id
+        +String semester
+        +String generatedBy
+        +DateTime createdAt
+        +Session[] sessions
+    }
+
+    class Session {
+        +String id
+        +String name
+        +SessionType type
+        +DayOfWeek day
+        +DateTime startTime
+        +DateTime endTime
+        +Int studentCount
+        +String courseId
+        +String instructorId
+        +String classroomId
+        +String scheduleId
+    }
+
+    enum DayOfWeek {
+        SATURDAY
+        SUNDAY
+        MONDAY
+        TUESDAY
+        WEDNESDAY
+        THURSDAY
+    }
+
+    enum SessionType {
+        LECTURE
+        SECTION
+    }
+
+    enum CourseType {
+        THEORETICAL
+        PRACTICAL
+    }
+
+    enum ClassroomType {
+        LECTURE_HALL
+        LAB
+    }
+
+    enum UserRole {
+        INSTRUCTOR
+        ADMIN
+        TA
+    }
+}
+
+package PKG_BACKEND {
+    class AIIntegrationService {
+        -String aiApiUrl
+        +checkHealth() Promise<boolean>
+        +generateSchedule(campusId, semester) Promise<Object>
+        +fetchRooms(campusId) Promise<Array>
+        +fetchCourses() Promise<Array>
+        +fetchInstructors() Promise<Array>
+        +fetchDivisions() Promise<Array>
+        +transformRoomToAI(classroom) Object
+        +transformCourseToAI(course) Object
+        +transformInstructorToAI(instructor) Object
+        +transformDivisionToAI(group) Object
+        +saveScheduleToDatabase(aiResult, semester, campusId) Promise<Object>
+        +parseTime(timeString) Date
+    }
+
+    class AuthService {
+        +register(email, password, name, role, isExpatriate) Promise<User>
+        +login(email, password, role, isExpatriate) Promise<Object>
+        +verifyEmail(email, otp) Promise<User>
+        +resendVerificationEmail(email) Promise<void>
+        +resetPassword(email) Promise<void>
+        +verifyResetToken(token) Promise<User>
+        +updatePassword(token, newPassword) Promise<void>
+    }
+
+    class CampusService {
+        +createCampus(name, city) Promise<Campus>
+        +getAllCampuses() Promise<Array>
+        +getCampusById(id) Promise<Campus>
+        +updateCampus(id, data) Promise<Campus>
+        +deleteCampus(id) Promise<Campus>
+    }
+
+    class ClassroomService {
+        +createClassroom(name, capacity, type, campusName) Promise<Classroom>
+        +getAllClassrooms(campusName) Promise<Array>
+        +getClassroomById(id) Promise<Classroom>
+        +updateClassroom(id, data) Promise<Classroom>
+        +deleteClassroom(id) Promise<Classroom>
+    }
+
+    class CourseService {
+        +createCourse(courseData) Promise<Course>
+        +getAllCourses(collegeId) Promise<Array>
+        +getCourseById(id) Promise<Course>
+        +updateCourse(id, data) Promise<Course>
+        +deleteCourse(id) Promise<Course>
+    }
+
+    class InstructorService {
+        +createInstructor(data) Promise<Instructor>
+        +getAllInstructors() Promise<Array>
+        +getInstructorById(id) Promise<Instructor>
+        +updateInstructor(id, data) Promise<Instructor>
+        +deleteInstructor(id) Promise<Instructor>
+    }
+
+    class StudentGroupService {
+        +createStudentGroup(name, year, studentCount, departmentId) Promise<StudentGroup>
+        +getAllStudentGroups() Promise<Array>
+        +getStudentGroupById(id) Promise<StudentGroup>
+        +updateStudentGroup(id, data) Promise<StudentGroup>
+        +deleteStudentGroup(id) Promise<StudentGroup>
+    }
+
+    class ScheduleService {
+        +getScheduleById(id) Promise<Schedule>
+        +getAllSchedules() Promise<Array>
+    }
+
+    class ImportService {
+        +importStudents(data, campusId) Promise<Object>
+        +importInstructors(data, campusId) Promise<Object>
+        +importCourses(data, campusId) Promise<Object>
+        +importPhysicalResources(data, campusId) Promise<Object>
+        +importAll(data, campusId) Promise<Object>
+        +parseExcelToJSON(file) Promise<Object>
+    }
+
+    class ScheduleController {
+        +generateScheduleController(req, res) Promise<void>
+        +getScheduleByIdController(req, res) Promise<void>
+        +getAllSchedulesController(req, res) Promise<void>
+    }
+
+    class AuthController {
+        +registerController(req, res) Promise<void>
+        +loginController(req, res) Promise<void>
+        +verifyEmailController(req, res) Promise<void>
+    }
+}
+
+package PKG_AI {
+    class SchedulingGA {
+        -Int pop_size
+        -Int generations
+        -Float mutation_rate
+        -Float crossover_rate
+        -DataLoader data_loader
+        -DataFrame courses_df
+        -DataFrame rooms_df
+        -DataFrame doctors_df
+        -DataFrame divisions_df
+        -Dict doctor_availability
+        -Dict room_dict
+        +prepare_data() void
+        +has_conflict(schedule, day, instructor_id, time_start, time_end) bool
+        +create_individual() List<Dict>
+        +fitness(individual) float
+        +crossover(parent1, parent2) Tuple[List, List]
+        +mutate(individual) List<Dict>
+        +select_parents(population, fitness_scores) Tuple[List, List]
+        +run() Tuple[List[Dict], List[float]]
+        +format_schedule(schedule) List[Dict]
+    }
+
+    class DataLoader {
+        -List rooms_data
+        -List courses_data
+        -List doctors_data
+        -List divisions_data
+        -Dict room_dict
+        -Dict course_dict
+        -Dict doctor_availability
+        -Dict division_dict
+        -List lecture_rooms
+        -List lab_rooms
+        -DataFrame rooms_df
+        -DataFrame courses_df
+        -DataFrame doctors_df
+        -DataFrame divisions_df
+        -Boolean _is_loaded
+        +load_from_json(data) bool
+        +_prepare_data() void
+        +is_loaded() bool
+        +get_stats() Dict
+    }
+
+    class ScheduleRequest {
+        +GAConfig config
+        +SchedulingDataInput data
+    }
+
+    class ScheduleResponse {
+        +Boolean success
+        +String message
+        +List<ScheduleEntry> schedule
+        +Int total_assignments
+        +Float fitness_score
+        +Int generations_run
+    }
+
+    class ScheduleEntry {
+        +String day
+        +String course_name
+        +String instructor_name
+        +Int students
+        +String room
+        +String start_time
+        +String end_time
+        +String department
+        +String major
+        +Int year
+    }
+
+    class GAConfig {
+        +Int population_size
+        +Int generations
+        +Float mutation_rate
+        +Float crossover_rate
+    }
+}
+
+package PKG_FRONTEND {
+    class MainLayout {
+        +String title
+        +ReactNode children
+    }
+
+    class Sidebar {
+        +Boolean isOpen
+        +Function onClose
+    }
+
+    class ProtectedRoute {
+        +ReactNode children
+    }
+
+    class GeneratedScheduleView {
+        +Object schedule
+        +Boolean loading
+    }
+
+    class ScheduleGrid {
+        +Array<ScheduleSession> sessions
+    }
+
+    class ScheduleFormulaCard {
+        +Array branches
+        +String selectedBranch
+        +Function onBranchChange
+        +Function onRunCalculations
+        +Boolean loading
+        +String semester
+        +Function onSemesterChange
+    }
+
+    class BranchDataCard {
+        +String title
+        +String description
+        +ReactNode icon
+        +String iconColor
+        +String href
+    }
+
+    class ReportDetails {
+        +Object report
+        +Function onStatusChange
+        +Function onNotesChange
+        +Function onSave
+    }
+
+    class QuickFixActions {
+        +Function onReassignTimeSlot
+        +Function onAdjustRoomCapacity
+        +Function onRecalculateSection
+    }
+}
+
+' Relationships - Database Models
+Campus ||--o{ College : "has"
+Campus ||--o{ Classroom : "has"
+College ||--o{ Department : "has"
+College ||--o{ Course : "has"
+Department ||--o{ Course : "has"
+Department ||--o{ Instructor : "has"
+Department ||--o{ StudentGroup : "has"
+Course }o--|| Instructor : "assigned to"
+Course ||--o{ Session : "has"
+Schedule ||--o{ Session : "contains"
+Session }o--|| Classroom : "uses"
+Session }o--|| User : "taught by"
+User ||--o{ Session : "teaches"
+
+' Relationships - Backend Services
+AIIntegrationService ..> User : "uses"
+AIIntegrationService ..> Course : "uses"
+AIIntegrationService ..> Instructor : "uses"
+AIIntegrationService ..> StudentGroup : "uses"
+AIIntegrationService ..> Classroom : "uses"
+AIIntegrationService ..> Schedule : "creates"
+AIIntegrationService ..> Session : "creates"
+AIIntegrationService ..> SchedulingGA : "calls"
+AIIntegrationService ..> DataLoader : "uses"
+
+AuthService ..> User : "manages"
+CampusService ..> Campus : "manages"
+ClassroomService ..> Classroom : "manages"
+CourseService ..> Course : "manages"
+InstructorService ..> Instructor : "manages"
+StudentGroupService ..> StudentGroup : "manages"
+ScheduleService ..> Schedule : "manages"
+ImportService ..> User : "imports"
+ImportService ..> Course : "imports"
+ImportService ..> Instructor : "imports"
+ImportService ..> StudentGroup : "imports"
+ImportService ..> Classroom : "imports"
+
+ScheduleController ..> AIIntegrationService : "uses"
+ScheduleController ..> ScheduleService : "uses"
+AuthController ..> AuthService : "uses"
+
+' Relationships - AI Service
+SchedulingGA ..> DataLoader : "uses"
+SchedulingGA ..> ScheduleEntry : "creates"
+DataLoader ..> ScheduleRequest : "processes"
+
+' Relationships - Frontend
+GeneratedScheduleView ..> ScheduleGrid : "uses"
+ScheduleFormulaCard ..> AIIntegrationService : "calls"
+ReportDetails ..> Schedule : "references"
+QuickFixActions ..> Session : "modifies"
+
+MainLayout ..> Sidebar : "contains"
+ProtectedRoute ..> User : "checks"
+
+note right of SchedulingGA
+  Genetic Algorithm for
+  course scheduling
+  - Population-based optimization
+  - Fitness function with penalties
+  - Crossover and mutation operators
+end note
+
+note right of AIIntegrationService
+  Bridges backend database
+  with AI microservice
+  - Transforms data formats
+  - Manages API communication
+  - Saves generated schedules
+end note
+
+note right of DataLoader
+  Prepares data for GA
+  - Loads from JSON
+  - Creates DataFrames
+  - Builds availability maps
+end note
+
+@enduml
+

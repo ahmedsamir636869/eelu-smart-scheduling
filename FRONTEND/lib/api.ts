@@ -192,20 +192,50 @@ export const api = {
 
 // Schedule-specific API functions
 export const scheduleApi = {
-  generate: async (campusId: string, semester: string) => {
+  generate: async (campusId: string, semester: string, scheduleType?: 'lectures' | 'sections' | 'all') => {
     const response = await api.post<any>(
       '/schedule/generate',
-      { campusId, semester }
+      { campusId, semester, scheduleType: scheduleType || 'all' }
     )
     // Backend returns { success, message, schedule }
     // extractData will extract the schedule object
     // Schedule object has: { id, semester, generatedBy, sessions, totalSessions }
-    return response
+    return extractData(response, 'schedule') || response
   },
 
-  getAll: () => api.get<any[]>('/schedule'),
+  getAll: async () => {
+    const response = await api.get<any>('/schedule')
+    return extractData(response, 'schedules') || []
+  },
 
-  getById: (id: string) => api.get<any>(`/schedule/${id}`),
+  getById: async (id: string) => {
+    const response = await api.get<any>(`/schedule/${id}`)
+    return extractData(response, 'schedule')
+  },
+}
+
+// Import API functions
+export const importApi = {
+  import: async (category: string, formData: FormData) => {
+    const token = getAccessToken()
+    const response = await fetch(`${API_BASE_URL}/import/${category}`, {
+      method: 'POST',
+      headers: {
+        Authorization: token ? `Bearer ${token}` : '',
+      },
+      body: formData,
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new ApiError(
+        errorData.message || errorData.error || 'Import failed',
+        response.status
+      )
+    }
+
+    return response.json()
+  },
 }
 
 // Campus API functions
@@ -318,6 +348,18 @@ export const courseApi = {
   update: (id: string, data: any) => api.patch<any>(`/course/${id}`, data),
 
   delete: (id: string) => api.delete(`/course/${id}`),
+}
+
+// User API functions
+export const userApi = {
+  getProfile: () => api.get<any>('/auth/me'),
+
+  updateProfile: (data: {
+    name?: string
+    email?: string
+    password?: string
+    isExpatriate?: boolean
+  }) => api.patch<any>('/auth/me', data),
 }
 
 export { ApiError }

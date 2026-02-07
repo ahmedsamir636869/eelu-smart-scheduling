@@ -1,0 +1,325 @@
+EELU SMART SCHEDULING SYSTEM MAP
+====================================
+Based on actual project structure (FRONTEND/app/)
+
+====================================
+1. AUTHENTICATION & GENERAL PAGES
+====================================
+
+/login
+  - User login page
+  - Email/password authentication
+  - Redirects to dashboard after successful login
+
+/register
+  - New user registration
+  - Account creation with email verification
+
+/verify-email
+  - Email verification page
+  - Handles email verification tokens
+
+/profile
+  - User profile management
+  - View and edit personal information
+  - Change password
+  - View account details (ID, member since, roles)
+  - Display role badges (ADMIN, INSTRUCTOR, TA)
+  - Expatriate status management
+
+/dashboard
+  - Main landing page (redirects from root /)
+  - Summary cards:
+    * Pending Reviews
+    * Published Schedules
+    * Open Conflict Reports
+    * Doctor Schedules Uploaded
+  - Quick Actions section
+  - Recent Reports feed
+  - Role-based content display
+
+====================================
+2. DATA MANAGEMENT HUB
+====================================
+
+/data
+  - Branch selection screen
+  - List all campuses/branches
+  - Create new branch
+  - Edit existing branch
+  - Import data card (links to /data/import)
+  - System configuration card (links to /settings)
+  - Each branch card links to /data/[branchId]
+
+/data/import
+  - Bulk system import page
+  - Upload EXCEL, CSV, or JSON files
+  - Data categories:
+    * All Data
+    * Students
+    * Physical Resources
+    * Doctors/Instructors
+    * Courses
+  - Import guidelines and templates
+  - File upload area with drag-and-drop
+
+/data/[branchId]
+  - Branch-specific data management menu
+  - Central hub for managing branch data
+  - Cards linking to:
+    * Physical Resources
+    * Students' Data
+    * Instructor Assignments
+    * Courses
+    * Doctor Schedule Upload Manager
+    * Course Schedules
+    * System Configuration (global)
+    * Import System Data
+
+/data/[branchId]/physical-resources
+  - Manage physical resources for branch
+  - IT Labs management
+  - Lecture Rooms management
+  - Capacity settings
+  - Room type configuration (Lecture Hall / Lab)
+  - Summary cards showing total capacity
+
+/data/[branchId]/students
+  - Students' Data management
+  - Manage sections by Academic Level (1-4)
+  - Select College (IT / Business)
+  - Section cards showing:
+    * Section number
+    * Number of students
+    * Assigned group
+    * College and Level badge
+    * Department badge
+  - Total Branch Enrollment (all levels, all colleges)
+  - Add/Edit/Delete sections
+  - Create new sections with group assignment
+
+/data/[branchId]/instructors
+  - Instructor Assignments directory
+  - View all instructors (TAs and Assistant Lecturers)
+  - Search and filter instructors
+  - View instructor profiles:
+    * Name and role
+    * Weekly load
+    * Courses assigned
+    * Available days
+    * Free time slots
+  - Edit instructor assignments
+  - View instructor schedules
+
+/data/[branchId]/courses
+  - Course management for branch
+  - List all courses
+  - Filter by college/department
+  - Course details:
+    * Course code and name
+    * Department and College
+    * Instructor assignment
+    * Type (Lecture/Lab)
+    * Year/Level
+    * Days per week
+    * Hours per day
+  - Create/Edit/Delete courses
+  - Assign instructors to courses
+
+/data/[branchId]/doctor-schedules
+  - Doctor Schedule Upload Manager
+  - View submitted doctor schedules
+  - Upload PDF schedules directly
+  - Track processing status:
+    * Processed
+    * Error in parsing
+    * Pending Review
+  - Download schedule files
+  - Delete schedules
+  - File upload section
+
+/data/[branchId]/schedules
+  - Course Schedules management
+  - Create, edit, and publish weekly schedules
+  - Manual schedule creation
+  - View AI-generated schedules
+  - Schedule viewer (grid/list view)
+  - Schedule editor
+  - Calendar view
+  - Filter by college
+
+====================================
+3. SCHEDULE GENERATION
+====================================
+
+/generate
+  - Schedule Generation page
+  - Select branch/campus
+  - Select semester
+  - Run Calculations:
+    * Generate Lectures schedule
+    * Generate Sections schedule
+  - Schedule Formula Card:
+    * Branch selection
+    * Semester input
+    * Calculation type selection
+    * Run button
+  - Generated Schedule View:
+    * Schedule grid display
+    * Color-coded by level/year
+    * Shows course, instructor, room, time
+    * Year badges on each session
+  - Performance Insights:
+    * Initial conflict rate
+    * Average resolution time
+    * Last successful run
+  - Calculation Log
+  - Conflict Resolution Card (links to conflict resolution)
+
+====================================
+4. PUBLISHED SCHEDULES
+====================================
+
+/published
+  - Schedule Review and Publish page
+  - Select branch for review
+  - View schedules by branch
+  - Faculty Schedule Cards:
+    * IT Faculty schedule
+    * Business Faculty schedule
+    * Status (draft/published)
+    * Key metrics
+  - Finalize & Publish button
+  - Browse finalized schedules
+  - View schedule details
+
+====================================
+5. REPORTS
+====================================
+
+/reports
+  - TA Issue Reports feed
+  - All reported conflicts and issues
+  - Report list with:
+    * Report number
+    * User ID
+    * Branch
+    * Description
+    * Status (new/in_progress/resolved)
+  - Report Details panel:
+    * Full report information
+    * Branch and faculty details
+    * Date reported
+    * Schedule ID
+    * Admin notes
+    * Status management
+  - Quick Fix Actions:
+    * Reassign Time-Slot
+    * Adjust Room Capacity
+    * Recalculate Section
+  - Filter by status
+  - Update report status and notes
+
+====================================
+6. SYSTEM SETTINGS
+====================================
+
+/settings
+  - Global System Settings
+  - Soft Constraint Toggles:
+    * SC1: Staff Preference (TAs)
+    * SC2: Staff Preference (Instructors)
+    * SC3: Time Distribution (Students)
+    * SC4: Optimization (Students/Staff)
+    * SC5: Resource Optimization (IT)
+    * SC6: Course Organization (Students)
+  - Enable/disable each constraint
+  - Constraint descriptions
+  - Calendar Settings:
+    * Academic calendar configuration
+    * Semester dates
+    * Holiday management
+  - Save Configuration button
+  - Note: Changes affect ALL branches
+
+====================================
+ROLE-BASED ACCESS
+====================================
+
+The system uses role-based access control through ProtectedRoute component.
+All pages check user authentication and roles (ADMIN, INSTRUCTOR, TA).
+
+Common roles:
+- ADMIN: Full access to all features
+- INSTRUCTOR: Access to own schedule and profile
+- TA: Access to published schedules and reporting
+
+====================================
+NAVIGATION STRUCTURE
+====================================
+
+Main Navigation (Sidebar):
+- Dashboard (/dashboard)
+- Generate (/generate)
+- Data (/data)
+- Published (/published)
+- Reports (/reports)
+
+General Menu:
+- Profile (/profile)
+- Settings (/settings)
+
+====================================
+KEY FEATURES
+====================================
+
+1. Branch/Campus Management
+   - Multi-campus support
+   - Branch-specific data isolation
+   - Centralized branch selection
+
+2. AI-Powered Schedule Generation
+   - Genetic Algorithm scheduler
+   - Automatic conflict resolution
+   - Performance metrics tracking
+   - Level-based color coding
+
+3. Data Import/Export
+   - Bulk Excel/CSV/JSON import
+   - Doctor schedule PDF upload
+   - Data validation and error handling
+
+4. Schedule Visualization
+   - Grid view with time slots
+   - Calendar view
+   - Color-coded by year/level
+   - Department and college filtering
+
+5. Conflict Management
+   - Automatic detection
+   - Manual resolution tools
+   - TA reporting system
+   - Quick fix actions
+
+6. Soft Constraints
+   - Configurable optimization goals
+   - Staff preferences
+   - Resource optimization
+   - Time distribution
+
+====================================
+TECHNICAL NOTES
+====================================
+
+- Frontend: Next.js with TypeScript
+- Routing: App Router (Next.js 13+)
+- Dynamic routes: [branchId] for branch-specific pages
+- Authentication: ProtectedRoute wrapper
+- API: RESTful backend integration
+- State Management: React hooks and context
+- UI Components: Custom component library
+
+====================================
+END OF SYSTEM MAP
+====================================
+

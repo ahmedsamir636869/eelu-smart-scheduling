@@ -40,15 +40,17 @@ export interface College {
     name: string
 }
 
-// Time slots configuration
+// Time slots configuration (8:00 - 17:00 consecutive slots)
 export const TIME_SLOTS: TimeSlot[] = [
-    { id: '1', startTime: '08:00', endTime: '09:30' },
-    { id: '2', startTime: '09:45', endTime: '11:15' },
-    { id: '3', startTime: '11:30', endTime: '13:00' },
-    { id: '4', startTime: '13:15', endTime: '14:45' },
-    { id: '5', startTime: '15:00', endTime: '16:30' },
-    { id: '6', startTime: '16:45', endTime: '18:15' },
-    { id: '7', startTime: '18:30', endTime: '20:00' },
+    { id: '1', startTime: '08:00', endTime: '09:00' },
+    { id: '2', startTime: '09:00', endTime: '10:00' },
+    { id: '3', startTime: '10:00', endTime: '11:00' },
+    { id: '4', startTime: '11:00', endTime: '12:00' },
+    { id: '5', startTime: '12:00', endTime: '13:00' },
+    { id: '6', startTime: '13:00', endTime: '14:00' },
+    { id: '7', startTime: '14:00', endTime: '15:00' },
+    { id: '8', startTime: '15:00', endTime: '16:00' },
+    { id: '9', startTime: '16:00', endTime: '17:00' },
 ]
 
 export const DAYS_OF_WEEK: DayOfWeek[] = [

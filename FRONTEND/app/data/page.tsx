@@ -152,6 +152,24 @@ export default function DataPage() {
     }
   }
 
+  const handleDeleteBranch = async (branch: Branch) => {
+    if (!confirm(`Are you sure you want to delete "${branch.name}"? This will also delete all associated colleges, departments, and data.`)) {
+      return
+    }
+
+    try {
+      setError('')
+      await campusApi.delete(branch.id)
+      setBranches(branches.filter(b => b.id !== branch.id))
+    } catch (err) {
+      const errorMessage =
+        err instanceof ApiError
+          ? err.message
+          : 'Failed to delete branch. Please try again.'
+      setError(errorMessage)
+    }
+  }
+
   const handleUpdateBranch = async (data: { 
     id: string
     name: string
@@ -312,6 +330,7 @@ export default function DataPage() {
                     setEditingBranch(branch)
                     setIsEditModalOpen(true)
                   }}
+                  onDelete={handleDeleteBranch}
                 />
               ))}
             </div>

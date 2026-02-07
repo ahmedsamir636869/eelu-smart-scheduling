@@ -8,9 +8,10 @@ import { cn } from '@/lib/utils'
 interface FileUploadAreaProps {
   onFileSelect: (file: File) => void
   acceptedTypes?: string[]
+  disabled?: boolean
 }
 
-export function FileUploadArea({ onFileSelect, acceptedTypes = ['.xlsx', '.csv', '.json'] }: FileUploadAreaProps) {
+export function FileUploadArea({ onFileSelect, acceptedTypes = ['.xlsx', '.csv', '.json'], disabled = false }: FileUploadAreaProps) {
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -60,6 +61,7 @@ export function FileUploadArea({ onFileSelect, acceptedTypes = ['.xlsx', '.csv',
         accept={acceptedTypes.join(',')}
         onChange={handleFileInput}
         className="hidden"
+        disabled={disabled}
       />
       <div className="flex flex-col items-center gap-4">
         <div className="text-teal-400">
@@ -68,8 +70,8 @@ export function FileUploadArea({ onFileSelect, acceptedTypes = ['.xlsx', '.csv',
         <div>
           <p className="text-white text-base sm:text-lg font-medium mb-2">Upload Data File</p>
           <p className="text-gray-400 text-xs sm:text-sm mb-4">Drag and drop your data file here.</p>
-          <Button variant="primary" onClick={handleBrowseClick} className="w-full sm:w-auto">
-            Browse Files
+          <Button variant="primary" onClick={handleBrowseClick} className="w-full sm:w-auto" disabled={disabled}>
+            {disabled ? 'Processing...' : 'Browse Files'}
           </Button>
         </div>
       </div>

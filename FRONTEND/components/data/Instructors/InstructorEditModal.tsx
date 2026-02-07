@@ -17,6 +17,7 @@ interface InstructorEditModalProps {
     weeklyLoad: number
     coursesAssigned: string[]
     availableDays: string[]
+    freeTimeSlots?: Array<{ day: string, startTime: string, endTime: string }>
   }
   isOpen: boolean
   onClose: () => void
@@ -96,33 +97,39 @@ export function InstructorEditModal({
 
         {/* Content */}
         <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
-          {/* Professional Role and Weekly Work Hours */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+          {/* Professional Role */}
+          <div>
+            <label className="text-gray-400 text-sm font-medium mb-2 block">
+              PROFESSIONAL ROLE
+            </label>
+            <Select
+              options={roles}
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+            />
+          </div>
+
+          {/* Free Time Slots */}
+          {instructor.freeTimeSlots && instructor.freeTimeSlots.length > 0 && (
             <div>
               <label className="text-gray-400 text-sm font-medium mb-2 block">
-                PROFESSIONAL ROLE
+                FREE TIME
               </label>
-              <Select
-                options={roles}
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="text-gray-400 text-sm font-medium mb-2 block">
-                WEEKLY WORK HOURS
-              </label>
-              <div className="relative">
-                <Clock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <Input
-                  type="number"
-                  value={weeklyLoad}
-                  onChange={(e) => setWeeklyLoad(parseInt(e.target.value) || 0)}
-                  className="pl-10"
-                />
+              <div className="space-y-2">
+                {instructor.freeTimeSlots.map((slot, idx) => (
+                  <div key={idx} className="flex items-center justify-between bg-gray-800/50 px-4 py-3 rounded-lg border border-gray-700">
+                    <div className="flex items-center gap-3">
+                      <Clock className="w-4 h-4 text-gray-400" />
+                      <span className="text-white font-medium">{slot.day}</span>
+                    </div>
+                    <span className="text-gray-300">
+                      {slot.startTime} - {slot.endTime}
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
-          </div>
+          )}
 
           {/* Assigned Courses */}
           <div>
