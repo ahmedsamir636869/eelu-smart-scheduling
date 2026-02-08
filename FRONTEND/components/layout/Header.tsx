@@ -1,8 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { Search, Bell, Moon, User, ChevronDown, Menu } from 'lucide-react'
+import { Search, Bell, Moon, User, ChevronDown, Menu, LogOut } from 'lucide-react'
 import Link from 'next/link'
+import { useAuth } from '@/contexts/AuthContext'
 
 interface HeaderProps {
   title: string
@@ -12,6 +13,7 @@ interface HeaderProps {
 
 export function Header({ title, subtitle, onMenuClick }: HeaderProps) {
   const [showProfileDropdown, setShowProfileDropdown] = useState(false)
+  const { logout } = useAuth()
 
   return (
     <div className="bg-gray-900 border-b border-gray-800 px-4 sm:px-6 py-4">
@@ -69,13 +71,16 @@ export function Header({ title, subtitle, onMenuClick }: HeaderProps) {
                   >
                     My Profile
                   </Link>
-                  <Link
-                    href="/logout"
-                    className="block px-3 py-2 text-gray-300 hover:bg-gray-700 rounded text-sm transition-colors"
-                    onClick={() => setShowProfileDropdown(false)}
+                  <button
+                    className="w-full flex items-center gap-2 px-3 py-2 text-gray-300 hover:bg-gray-700 rounded text-sm transition-colors text-left"
+                    onClick={() => {
+                      setShowProfileDropdown(false)
+                      logout()
+                    }}
                   >
+                    <LogOut className="w-4 h-4" />
                     Logout
-                  </Link>
+                  </button>
                 </div>
               </div>
             )}

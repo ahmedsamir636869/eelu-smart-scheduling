@@ -74,6 +74,9 @@ export default function PublishedPage() {
       const mappedSchedules: Schedule[] = allSchedules
         .filter((s: any) => publishedIds.includes(s.id)) // Only show published ones
         .map((s: any) => {
+          // Get the schedule's college name for fallback
+          const scheduleCollegeName = s.collegeName || s.college?.name || 'General'
+
           // Map sessions to events (simplified for display)
           const events: ScheduleEvent[] = (s.sessions || []).map((session: any) => {
             const dayMap: Record<string, DayOfWeek> = {
@@ -95,6 +98,12 @@ export default function PublishedPage() {
             const type = session.type === 'SECTION' ? 'lab' : 'lecture'
             const colorConfig = EVENT_COLORS[type] || EVENT_COLORS.lecture
 
+            // Get college from session, course, or fallback to schedule's college
+            const eventCollege = session.course?.college?.name ||
+              session.college?.name ||
+              session.course?.collegeName ||
+              scheduleCollegeName
+
             return {
               id: session.id,
               title: session.name || session.course?.name || 'Untitled',
@@ -110,15 +119,15 @@ export default function PublishedPage() {
               studentCount: session.studentCount,
               roomCapacity: session.classroom?.capacity,
               year: session.course?.year,
-              college: session.course?.college?.name || session.college?.name
+              college: eventCollege
             }
           })
 
           return {
             id: s.id,
             name: `${s.semester} ${s.generatedBy || 'Schedule'}`,
-            collegeId: 'unknown',
-            collegeName: 'General',
+            collegeId: s.collegeId || 'unknown',
+            collegeName: scheduleCollegeName,
             status: 'published',
             events: events,
             createdAt: s.createdAt || new Date().toISOString(),

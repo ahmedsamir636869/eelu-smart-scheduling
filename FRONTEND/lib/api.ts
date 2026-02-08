@@ -104,18 +104,16 @@ async function request<T>(
     }
 
     if (!response.ok) {
-      // For 400 errors on department getAll, check if it's "failed to find departments"
-      // which might mean no departments exist (should return empty array)
-      if (response.status === 400 && endpoint.includes('/department/collegeId/')) {
-        try {
-          const errorJson = await response.json()
-          // If the error message is about not finding departments, return empty array
-          if (errorJson.message?.toLowerCase().includes('failed to find departments')) {
-            return [] as T
-          }
-        } catch {
-          // If can't parse error, continue with normal error handling
-        }
+      // For any errors on department getAll endpoint, return empty array
+      // This handles: validation errors, not found, failed to find departments, etc.
+      if (endpoint.includes('/department/collegeId/')) {
+        console.warn(`Department fetch returned ${response.status}, returning empty array`)
+        return [] as T
+      }
+
+      // For 404 errors on department endpoints, return empty array
+      if (response.status === 404 && endpoint.includes('/department/')) {
+        return [] as T
       }
 
       let errorMessage = `API Error: ${response.statusText}`

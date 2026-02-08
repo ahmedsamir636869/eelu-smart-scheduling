@@ -112,92 +112,106 @@ export function ScheduleCalendar({ events, onEventMove, isEditable = true }: Sch
     }
 
     return (
-        <div className="w-full overflow-x-auto">
-            <div className="min-w-[900px] w-full inline-block">
-                {/* Calendar Grid */}
-                <div className="bg-gray-800 rounded-xl border border-gray-700">
-                    {/* Header Row - Time Slots (Sticky) */}
-                    <div className="sticky top-0 z-20 grid bg-gray-800" style={{ gridTemplateColumns: `120px repeat(${TIME_SLOTS.length}, 1fr)` }}>
-                        {/* Empty corner cell */}
-                        <div className="bg-gray-900 p-3 border-b border-r border-gray-700 flex items-center justify-center sticky left-0 z-30 shadow-lg">
-                            <Clock className="w-5 h-5 text-gray-400" />
+        <div className="w-full">
+            {/* Mobile hint */}
+            <div className="md:hidden mb-3 p-2 bg-gray-800/50 rounded-lg border border-gray-700 text-center">
+                <p className="text-gray-400 text-xs">👆 Scroll horizontally to view all time slots</p>
+            </div>
+
+            <div className="w-full overflow-x-auto scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-gray-800 pb-2">
+                <div className="min-w-[800px] lg:min-w-full">
+                    {/* Calendar Grid */}
+                    <div className="bg-gray-800/80 rounded-xl border border-gray-700/80 shadow-xl backdrop-blur-sm">
+                        {/* Header Row - Time Slots (Sticky) */}
+                        <div className="sticky top-0 z-20 grid bg-gray-900/95 backdrop-blur-sm rounded-t-xl" style={{ gridTemplateColumns: `100px repeat(${TIME_SLOTS.length}, minmax(120px, 1fr))` }}>
+                            {/* Empty corner cell */}
+                            <div className="bg-gradient-to-br from-gray-800 to-gray-900 p-2 sm:p-3 border-b border-r border-gray-700/60 flex items-center justify-center sticky left-0 z-30 rounded-tl-xl">
+                                <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-teal-400" />
+                            </div>
+                            {/* Time slot headers */}
+                            {TIME_SLOTS.map((slot, idx) => (
+                                <div
+                                    key={slot.id}
+                                    className={cn(
+                                        "bg-gradient-to-br from-gray-800 to-gray-900 p-2 sm:p-3 border-b border-r border-gray-700/60 text-center",
+                                        idx === TIME_SLOTS.length - 1 && "border-r-0 rounded-tr-xl"
+                                    )}
+                                >
+                                    <div className="text-teal-400 font-semibold text-xs sm:text-sm whitespace-nowrap">
+                                        {slot.startTime}
+                                    </div>
+                                    <div className="text-gray-500 text-xs whitespace-nowrap">
+                                        {slot.endTime}
+                                    </div>
+                                </div>
+                            ))}
                         </div>
-                        {/* Time slot headers */}
-                        {TIME_SLOTS.map((slot, idx) => (
+
+                        {/* Day Rows */}
+                        {DAYS_OF_WEEK.map((day, dayIndex) => (
                             <div
-                                key={slot.id}
-                                className="bg-gray-900 p-3 border-b border-r border-gray-700 text-center last:border-r-0 shadow-lg"
+                                key={day}
+                                className="grid"
+                                style={{ gridTemplateColumns: `100px repeat(${TIME_SLOTS.length}, minmax(120px, 1fr))` }}
                             >
-                                <div className="text-teal-400 font-semibold text-sm whitespace-nowrap">
-                                    {slot.startTime}
+                                {/* Day Label (Sticky on horizontal scroll) */}
+                                <div
+                                    className={cn(
+                                        'p-2 sm:p-3 border-r border-gray-700/60 flex items-center justify-center sticky left-0 z-[15]',
+                                        dayIndex % 2 === 0
+                                            ? 'bg-gradient-to-r from-gray-850 to-gray-800'
+                                            : 'bg-gradient-to-r from-gray-800 to-gray-850',
+                                        dayIndex < DAYS_OF_WEEK.length - 1 && 'border-b border-gray-700/60',
+                                        dayIndex === DAYS_OF_WEEK.length - 1 && 'rounded-bl-xl'
+                                    )}
+                                >
+                                    <span className="text-white font-medium text-xs sm:text-sm whitespace-nowrap">{DAY_LABELS[day]}</span>
                                 </div>
-                                <div className="text-gray-500 text-xs whitespace-nowrap">
-                                    {slot.endTime}
-                                </div>
+
+                                {/* Time Slots for this day */}
+                                {TIME_SLOTS.map((slot, slotIndex) => {
+                                    const slotEvents = getEventsForSlot(day, slot.startTime, slot.endTime)
+                                    const isDropTarget =
+                                        dragOverSlot?.day === day && dragOverSlot?.timeSlot === slot.startTime
+
+                                    return (
+                                        <div
+                                            key={`${day}-${slot.id}`}
+                                            className={cn(
+                                                'min-h-[100px] sm:min-h-[120px] p-1.5 sm:p-2 border-r border-gray-700/40 last:border-r-0 transition-all duration-200',
+                                                dayIndex % 2 === 0 ? 'bg-gray-850/50' : 'bg-gray-800/50',
+                                                dayIndex < DAYS_OF_WEEK.length - 1 && 'border-b border-gray-700/40',
+                                                isDropTarget && 'bg-teal-500/20 border-2 border-dashed border-teal-400 rounded-lg',
+                                                isEditable && 'hover:bg-gray-700/30',
+                                                dayIndex === DAYS_OF_WEEK.length - 1 && slotIndex === TIME_SLOTS.length - 1 && 'rounded-br-xl'
+                                            )}
+                                            style={{
+                                                minHeight: slotEvents.length > 0 ? `${Math.max(100, slotEvents.length * 130)}px` : undefined
+                                            }}
+                                            onDragOver={(e) => handleDragOver(e, day, slot.startTime)}
+                                            onDragLeave={handleDragLeave}
+                                            onDrop={(e) => handleDrop(e, day, slot.startTime)}
+                                        >
+                                            {slotEvents.length > 0 ? (
+                                                <div className="flex flex-col gap-1.5">
+                                                    {slotEvents.map((event) => (
+                                                        <EventCard
+                                                            key={event.id}
+                                                            event={event}
+                                                            isDragging={draggedEvent?.id === event.id}
+                                                            isEditable={isEditable}
+                                                            onDragStart={(e) => handleDragStart(e, event)}
+                                                            onDragEnd={handleDragEnd}
+                                                        />
+                                                    ))}
+                                                </div>
+                                            ) : null}
+                                        </div>
+                                    )
+                                })}
                             </div>
                         ))}
                     </div>
-
-                    {/* Day Rows */}
-                    {DAYS_OF_WEEK.map((day, dayIndex) => (
-                        <div
-                            key={day}
-                            className="grid"
-                            style={{ gridTemplateColumns: `120px repeat(${TIME_SLOTS.length}, 1fr)` }}
-                        >
-                            {/* Day Label (Sticky on horizontal scroll) */}
-                            <div
-                                className={cn(
-                                    'p-3 border-r border-gray-700 flex items-center justify-center sticky left-0 z-[15] shadow-lg',
-                                    dayIndex % 2 === 0 ? 'bg-gray-850' : 'bg-gray-800',
-                                    dayIndex < DAYS_OF_WEEK.length - 1 && 'border-b'
-                                )}
-                            >
-                                <span className="text-white font-medium text-sm whitespace-nowrap">{DAY_LABELS[day]}</span>
-                            </div>
-
-                            {/* Time Slots for this day */}
-                            {TIME_SLOTS.map((slot, slotIndex) => {
-                                const slotEvents = getEventsForSlot(day, slot.startTime, slot.endTime)
-                                const isDropTarget =
-                                    dragOverSlot?.day === day && dragOverSlot?.timeSlot === slot.startTime
-
-                                return (
-                                    <div
-                                        key={`${day}-${slot.id}`}
-                                        className={cn(
-                                            'min-h-[140px] p-2 border-r border-gray-700 last:border-r-0 transition-all duration-200',
-                                            dayIndex % 2 === 0 ? 'bg-gray-850' : 'bg-gray-800',
-                                            dayIndex < DAYS_OF_WEEK.length - 1 && 'border-b',
-                                            isDropTarget && 'bg-teal-500/20 border-2 border-dashed border-teal-500',
-                                            isEditable && 'hover:bg-gray-700/50'
-                                        )}
-                                        style={{
-                                            minHeight: slotEvents.length > 0 ? `${Math.max(140, slotEvents.length * 150)}px` : '140px'
-                                        }}
-                                        onDragOver={(e) => handleDragOver(e, day, slot.startTime)}
-                                        onDragLeave={handleDragLeave}
-                                        onDrop={(e) => handleDrop(e, day, slot.startTime)}
-                                    >
-                                        {slotEvents.length > 0 ? (
-                                            <div className="flex flex-col gap-1.5">
-                                                {slotEvents.map((event) => (
-                                                    <EventCard
-                                                        key={event.id}
-                                                        event={event}
-                                                        isDragging={draggedEvent?.id === event.id}
-                                                        isEditable={isEditable}
-                                                        onDragStart={(e) => handleDragStart(e, event)}
-                                                        onDragEnd={handleDragEnd}
-                                                    />
-                                                ))}
-                                            </div>
-                                        ) : null}
-                                    </div>
-                                )
-                            })}
-                        </div>
-                    ))}
                 </div>
             </div>
         </div>
@@ -262,90 +276,91 @@ function EventCard({ event, isDragging, isEditable, onDragStart, onDragEnd }: Ev
             onDragStart={onDragStart}
             onDragEnd={onDragEnd}
             className={cn(
-                'rounded-lg p-3 border-2 transition-all duration-200',
-                colors.bg,
+                'rounded-lg p-2 sm:p-2.5 border-l-4 transition-all duration-200 shadow-md backdrop-blur-sm',
+                'bg-gray-800/90 hover:bg-gray-750/95',
                 colors.border,
-                isDragging && 'opacity-50 scale-95',
-                isEditable && 'cursor-grab active:cursor-grabbing hover:scale-[1.02]'
+                isDragging && 'opacity-50 scale-95 shadow-xl',
+                isEditable && 'cursor-grab active:cursor-grabbing hover:shadow-lg hover:translate-y-[-1px]'
             )}
         >
-            {/* Drag Handle */}
-            {isEditable && (
-                <div className="flex justify-center mb-1">
-                    <GripVertical className="w-4 h-4 text-gray-500" />
+            {/* Header with Type Badge */}
+            <div className="flex items-start justify-between gap-1 mb-1.5">
+                <div className="flex items-center gap-1 flex-wrap">
+                    {(event.year !== undefined && event.year !== null) && (
+                        <span
+                            className={cn(
+                                'px-1.5 py-0.5 rounded text-[10px] font-semibold',
+                                colors.badge
+                            )}
+                        >
+                            Y{event.year}
+                        </span>
+                    )}
+                    <span
+                        className={cn(
+                            'px-1.5 py-0.5 rounded text-[10px] font-medium',
+                            event.type === 'lecture' ? 'bg-blue-500/20 text-blue-300' :
+                                event.type === 'lab' ? 'bg-purple-500/20 text-purple-300' :
+                                    'bg-teal-500/20 text-teal-300'
+                        )}
+                    >
+                        {event.type === 'lecture' && '📚'}
+                        {event.type === 'lab' && '🔬'}
+                        {event.type === 'tutorial' && '📝'}
+                    </span>
                 </div>
-            )}
+                {isEditable && (
+                    <GripVertical className="w-3 h-3 text-gray-500 flex-shrink-0 mt-0.5" />
+                )}
+            </div>
 
-            {/* Course Info */}
-            <div className="space-y-2">
-                <div className={cn('font-bold text-sm', colors.text)}>
+            {/* Course Code & Name */}
+            <div className="mb-1.5">
+                <div className={cn('font-bold text-xs sm:text-sm leading-tight', colors.text)}>
                     {event.courseCode}
                 </div>
-                <div className="text-white text-sm font-medium line-clamp-2">
+                <div className="text-white text-[11px] sm:text-xs font-medium line-clamp-2 leading-tight mt-0.5">
                     {event.courseName}
-                </div>
-                {/* College Info if available */}
-                {event.college && (
-                    <div className="text-gray-400 text-xs truncate flex items-center gap-1">
-                        <span className="w-1 h-3 bg-gray-600 rounded-full inline-block"></span>
-                        {event.college}
-                    </div>
-                )}
-
-                <div className="flex items-center gap-1 text-gray-300 text-xs">
-                    <User className="w-3 h-3 flex-shrink-0" />
-                    <span className="truncate">{event.instructor}</span>
-                </div>
-
-                {/* Location and Capacity */}
-                <div className="flex flex-col gap-1 text-gray-300 text-xs">
-                    <div className="flex items-center gap-1">
-                        <MapPin className="w-3 h-3 flex-shrink-0" />
-                        <span className="truncate">{event.location}</span>
-                    </div>
-                    {(event.roomCapacity !== undefined || event.studentCount !== undefined) && (
-                        <div className="flex flex-col gap-0.5 mt-0.5 border-l-2 border-gray-700 pl-2">
-                            {event.roomCapacity !== undefined && (
-                                <div className="flex items-center gap-1 text-gray-400">
-                                    <span className="truncate">Capacity: {event.roomCapacity}</span>
-                                </div>
-                            )}
-                            {event.studentCount !== undefined && (
-                                <div className="flex items-center gap-1 text-gray-400">
-                                    <span className="truncate">Students: {event.studentCount}</span>
-                                </div>
-                            )}
-                        </div>
-                    )}
                 </div>
             </div>
 
-            {/* Type Badge */}
-            <div className="mt-2 flex items-center gap-2 flex-wrap">
-                {(event.year !== undefined && event.year !== null) && (
-                    <span
-                        className={cn(
-                            'px-2 py-1 rounded text-xs font-medium',
-                            (colors as any).badge ? (colors as any).badge :
-                                (event.type === 'lecture' ? 'bg-blue-500/30 text-blue-300' :
-                                    event.type === 'lab' ? 'bg-purple-500/30 text-purple-300' : 'bg-teal-500/30 text-teal-300')
-                        )}
-                    >
-                        Year {event.year}
-                    </span>
+            {/* Details */}
+            <div className="space-y-1 text-[10px] sm:text-xs">
+                {/* College */}
+                {event.college && (
+                    <div className="flex items-center gap-1 text-gray-400">
+                        <span className="w-1.5 h-1.5 rounded-full bg-teal-500 flex-shrink-0"></span>
+                        <span className="truncate">{event.college}</span>
+                    </div>
                 )}
-                <span
-                    className={cn(
-                        'px-2 py-1 rounded text-xs font-medium',
-                        (colors as any).badge ? (colors as any).badge :
-                            (event.type === 'lecture' ? 'bg-blue-500/30 text-blue-300' :
-                                event.type === 'lab' ? 'bg-purple-500/30 text-purple-300' : 'bg-teal-500/30 text-teal-300')
-                    )}
-                >
-                    {event.type === 'lecture' && 'Lecture'}
-                    {event.type === 'lab' && 'Lab'}
-                    {event.type === 'tutorial' && 'Tutorial'}
-                </span>
+
+                {/* Instructor */}
+                <div className="flex items-center gap-1 text-gray-300">
+                    <User className="w-2.5 h-2.5 sm:w-3 sm:h-3 flex-shrink-0 text-gray-500" />
+                    <span className="truncate">{event.instructor}</span>
+                </div>
+
+                {/* Location */}
+                <div className="flex items-center gap-1 text-gray-300">
+                    <MapPin className="w-2.5 h-2.5 sm:w-3 sm:h-3 flex-shrink-0 text-gray-500" />
+                    <span className="truncate">{event.location}</span>
+                </div>
+
+                {/* Capacity Info */}
+                {(event.roomCapacity !== undefined || event.studentCount !== undefined) && (
+                    <div className="flex items-center gap-2 text-gray-500 pt-0.5 border-t border-gray-700/50 mt-1">
+                        {event.studentCount !== undefined && (
+                            <span className="flex items-center gap-0.5">
+                                👥 {event.studentCount}
+                            </span>
+                        )}
+                        {event.roomCapacity !== undefined && (
+                            <span className="flex items-center gap-0.5">
+                                🏫 {event.roomCapacity}
+                            </span>
+                        )}
+                    </div>
+                )}
             </div>
         </div>
     )

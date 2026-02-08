@@ -64,31 +64,37 @@ export default function StudentsPage({ params }: StudentsPageProps) {
 
   const findAndSetSelectedCollege = async (campusColleges: any[]) => {
     // Find college by name (IT or Business) - try multiple matching strategies
-    let college = campusColleges.find((c: any) => 
+    let college = campusColleges.find((c: any) =>
       c.name.toLowerCase() === selectedCollege.toLowerCase()
     )
-    
+
     // If exact match fails, try partial match
     if (!college) {
-      college = campusColleges.find((c: any) => 
+      college = campusColleges.find((c: any) =>
         c.name.toLowerCase().includes(selectedCollege.toLowerCase()) ||
         selectedCollege.toLowerCase().includes(c.name.toLowerCase())
       )
     }
-    
+
     // If still not found, try matching common variations
     if (!college) {
       const collegeVariations: Record<string, string[]> = {
         'IT': ['information technology', 'it', 'computer science', 'cs'],
         'Business': ['business', 'commerce', 'management', 'ba']
       }
-      
+
       const variations = collegeVariations[selectedCollege] || []
-      college = campusColleges.find((c: any) => 
+      college = campusColleges.find((c: any) =>
         variations.some(v => c.name.toLowerCase().includes(v))
       )
     }
-    
+
+    // If still not found, fall back to the first available college
+    if (!college && campusColleges.length > 0) {
+      college = campusColleges[0]
+      console.log(`College "${selectedCollege}" not found, falling back to "${college.name}"`)
+    }
+
     setSelectedCollegeObj(college)
 
     if (college) {
@@ -102,7 +108,7 @@ export default function StudentsPage({ params }: StudentsPageProps) {
       }
     } else {
       setDepartments([])
-      console.warn(`College "${selectedCollege}" not found. Available colleges:`, campusColleges.map((c: any) => c.name))
+      console.warn(`No colleges available for this campus`)
     }
   }
 
@@ -110,16 +116,16 @@ export default function StudentsPage({ params }: StudentsPageProps) {
     try {
       setLoading(true)
       setError('')
-      
+
       // Fetch campus info (includes colleges)
       const campus = await campusApi.getById(branchId)
       if (campus) {
-        const displayName = campus.city 
-          ? `${campus.name} - ${campus.city}` 
+        const displayName = campus.city
+          ? `${campus.name} - ${campus.city}`
           : campus.name
         setBranchName(displayName)
         setCampusData(campus)
-        
+
         // If campus has colleges, use them
         if (campus.colleges && campus.colleges.length > 0) {
           setColleges(campus.colleges)
@@ -128,10 +134,10 @@ export default function StudentsPage({ params }: StudentsPageProps) {
 
       // Fetch student groups
       const studentGroups = await studentGroupApi.getAll()
-      
+
       // Filter by level and transform to sections
       const filteredGroups = studentGroups.filter((group: any) => group.year === selectedLevel)
-      
+
       const transformedSections: Section[] = filteredGroups.map((group: any, index: number) => ({
         id: index + 1,
         numberOfStudents: group.studentCount || 0,
@@ -147,7 +153,7 @@ export default function StudentsPage({ params }: StudentsPageProps) {
           name: group.department.college.name
         } : undefined
       }))
-      
+
       setSections(transformedSections)
     } catch (err) {
       const errorMessage =
@@ -164,14 +170,14 @@ export default function StudentsPage({ params }: StudentsPageProps) {
   const handleStudentsChange = async (sectionNumber: number, value: number) => {
     // Update local state immediately for UI responsiveness
     setSections(sections.map(s => s.id === sectionNumber ? { ...s, numberOfStudents: value } : s))
-    
+
     // Find the corresponding student group and update via API
     // Note: This is a simplified implementation - you may need to map sections to student groups differently
     try {
       const studentGroups = await studentGroupApi.getAll()
       const filteredGroups = studentGroups.filter((group: any) => group.year === selectedLevel)
       const groupToUpdate = filteredGroups[sectionNumber - 1]
-      
+
       if (groupToUpdate) {
         await studentGroupApi.update(groupToUpdate.id, {
           studentCount: value,
@@ -185,13 +191,13 @@ export default function StudentsPage({ params }: StudentsPageProps) {
 
   const handleGroupChange = async (sectionNumber: number, value: string) => {
     setSections(sections.map(s => s.id === sectionNumber ? { ...s, assignedGroup: value } : s))
-    
+
     // Update student group name via API
     try {
       const studentGroups = await studentGroupApi.getAll()
       const filteredGroups = studentGroups.filter((group: any) => group.year === selectedLevel)
       const groupToUpdate = filteredGroups[sectionNumber - 1]
-      
+
       if (groupToUpdate) {
         await studentGroupApi.update(groupToUpdate.id, {
           name: value,
@@ -215,37 +221,37 @@ export default function StudentsPage({ params }: StudentsPageProps) {
 
     try {
       setError('')
-      
+
       // If we have the student group ID, use it; otherwise find it
       let studentGroupId = section.studentGroupId
-      
+
       if (!studentGroupId) {
         // Fetch student groups and find the matching one
         const studentGroups = await studentGroupApi.getAll()
         const filteredGroups = studentGroups.filter((group: any) => group.year === selectedLevel)
         const groupToDelete = filteredGroups[sectionNumber - 1]
-        
+
         if (!groupToDelete) {
           throw new Error('Student group not found')
         }
-        
+
         studentGroupId = groupToDelete.id
       }
 
       // Delete the student group
       await studentGroupApi.delete(studentGroupId)
-      
+
       // Refresh the sections list
       await fetchCampusAndStudentGroups()
-      
+
       // Recalculate total enrollment after deleting a section
       const allStudentGroups = await studentGroupApi.getAll()
       if (campusData?.colleges && campusData.colleges.length > 0) {
         const collegeIds = campusData.colleges.map((c: any) => c.id)
-        const filteredGroups = allStudentGroups.filter((group: any) => 
+        const filteredGroups = allStudentGroups.filter((group: any) =>
           group.department?.college && collegeIds.includes(group.department.college.id)
         )
-        const total = filteredGroups.reduce((sum: number, group: any) => 
+        const total = filteredGroups.reduce((sum: number, group: any) =>
           sum + (group.studentCount || 0), 0
         )
         setTotalBranchEnrollment(total)
@@ -285,42 +291,42 @@ export default function StudentsPage({ params }: StudentsPageProps) {
   }) => {
     try {
       setError('')
-      
+
       // Use the already selected college object if available, otherwise search
       let collegeObj = selectedCollegeObj
-      
+
       // If we don't have the selected college or it doesn't match, search for it
       if (!collegeObj || collegeObj.name.toLowerCase() !== data.college.toLowerCase()) {
         // Refresh colleges list to ensure we have the latest data
         const campusColleges = await collegeApi.getAll(branchId)
-        
+
         // Find college by name - try multiple matching strategies
-        collegeObj = campusColleges.find((c: any) => 
+        collegeObj = campusColleges.find((c: any) =>
           c.name.toLowerCase() === data.college.toLowerCase()
         )
-        
+
         // If exact match fails, try partial match
         if (!collegeObj) {
-          collegeObj = campusColleges.find((c: any) => 
+          collegeObj = campusColleges.find((c: any) =>
             c.name.toLowerCase().includes(data.college.toLowerCase()) ||
             data.college.toLowerCase().includes(c.name.toLowerCase())
           )
         }
-        
+
         // If still not found, try matching common variations
         if (!collegeObj) {
           const collegeVariations: Record<string, string[]> = {
             'IT': ['information technology', 'it', 'computer science', 'cs'],
             'Business': ['business', 'commerce', 'management', 'ba']
           }
-          
+
           const variations = collegeVariations[data.college] || []
-          collegeObj = campusColleges.find((c: any) => 
+          collegeObj = campusColleges.find((c: any) =>
             variations.some(v => c.name.toLowerCase().includes(v))
           )
         }
       }
-      
+
       if (!collegeObj) {
         const campusColleges = await collegeApi.getAll(branchId)
         const availableColleges = campusColleges.map((c: any) => c.name).join(', ') || 'None'
@@ -333,7 +339,7 @@ export default function StudentsPage({ params }: StudentsPageProps) {
       console.log(`Fetching departments for college: ${collegeObj.name} (${collegeObj.id})`)
       const collegeDepartments = await departmentApi.getAll(collegeObj.id)
       console.log(`Found ${collegeDepartments.length} departments:`, collegeDepartments)
-      
+
       if (collegeDepartments.length === 0) {
         throw new Error(
           `No departments found for "${collegeObj.name}" college. Please go back to the data management page and create a department for this college, or create a new branch with departments included.`
@@ -353,15 +359,15 @@ export default function StudentsPage({ params }: StudentsPageProps) {
 
       // Refresh the sections list
       await fetchCampusAndStudentGroups()
-      
+
       // Recalculate total enrollment after creating a new section
       const allStudentGroups = await studentGroupApi.getAll()
       if (campusData?.colleges && campusData.colleges.length > 0) {
         const collegeIds = campusData.colleges.map((c: any) => c.id)
-        const filteredGroups = allStudentGroups.filter((group: any) => 
+        const filteredGroups = allStudentGroups.filter((group: any) =>
           group.department?.college && collegeIds.includes(group.department.college.id)
         )
-        const total = filteredGroups.reduce((sum: number, group: any) => 
+        const total = filteredGroups.reduce((sum: number, group: any) =>
           sum + (group.studentCount || 0), 0
         )
         setTotalBranchEnrollment(total)
@@ -371,8 +377,8 @@ export default function StudentsPage({ params }: StudentsPageProps) {
         err instanceof ApiError
           ? err.message
           : err instanceof Error
-          ? err.message
-          : 'Failed to create section. Please try again.'
+            ? err.message
+            : 'Failed to create section. Please try again.'
       setError(errorMessage)
       console.error('Error creating section:', err)
       throw err
@@ -387,18 +393,18 @@ export default function StudentsPage({ params }: StudentsPageProps) {
       try {
         // Fetch ALL student groups (not filtered by college/level)
         const allStudentGroups = await studentGroupApi.getAll()
-        
+
         // Filter by campus colleges if available
         let filteredGroups = allStudentGroups
         if (campusData?.colleges && campusData.colleges.length > 0) {
           const collegeIds = campusData.colleges.map((c: any) => c.id)
-          filteredGroups = allStudentGroups.filter((group: any) => 
+          filteredGroups = allStudentGroups.filter((group: any) =>
             group.department?.college && collegeIds.includes(group.department.college.id)
           )
         }
-        
+
         // Sum all student counts
-        const total = filteredGroups.reduce((sum: number, group: any) => 
+        const total = filteredGroups.reduce((sum: number, group: any) =>
           sum + (group.studentCount || 0), 0
         )
         setTotalBranchEnrollment(total)
@@ -447,37 +453,37 @@ export default function StudentsPage({ params }: StudentsPageProps) {
             </Card>
           </div>
 
-        <div className="space-y-4">
-          <div>
-            <h3 className="text-white font-medium mb-3 text-sm sm:text-base">SELECT COLLEGE</h3>
-            <div className="flex flex-wrap gap-2">
-              <ToggleButton
-                label="IT"
-                isSelected={selectedCollege === 'IT'}
-                onClick={() => setSelectedCollege('IT')}
-              />
-              <ToggleButton
-                label="Business"
-                isSelected={selectedCollege === 'Business'}
-                onClick={() => setSelectedCollege('Business')}
-              />
-            </div>
-          </div>
-
-          <div>
-            <h3 className="text-white font-medium mb-3 text-sm sm:text-base">ACADEMIC LEVEL</h3>
-            <div className="flex flex-wrap gap-2">
-              {[1, 2, 3, 4].map((level) => (
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-white font-medium mb-3 text-sm sm:text-base">SELECT COLLEGE</h3>
+              <div className="flex flex-wrap gap-2">
                 <ToggleButton
-                  key={level}
-                  label={`Level ${level}`}
-                  isSelected={selectedLevel === level}
-                  onClick={() => setSelectedLevel(level)}
+                  label="IT"
+                  isSelected={selectedCollege === 'IT'}
+                  onClick={() => setSelectedCollege('IT')}
                 />
-              ))}
+                <ToggleButton
+                  label="Business"
+                  isSelected={selectedCollege === 'Business'}
+                  onClick={() => setSelectedCollege('Business')}
+                />
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-white font-medium mb-3 text-sm sm:text-base">ACADEMIC LEVEL</h3>
+              <div className="flex flex-wrap gap-2">
+                {[1, 2, 3, 4].map((level) => (
+                  <ToggleButton
+                    key={level}
+                    label={`Level ${level}`}
+                    isSelected={selectedLevel === level}
+                    onClick={() => setSelectedLevel(level)}
+                  />
+                ))}
+              </div>
             </div>
           </div>
-        </div>
 
           {loading ? (
             <div className="text-center py-8 text-gray-400">Loading student groups...</div>
@@ -494,14 +500,14 @@ export default function StudentsPage({ params }: StudentsPageProps) {
                   </p>
                 </div>
               )}
-              
+
               {colleges.length === 0 && (
                 <div className="p-3 bg-yellow-900/50 border border-yellow-700 rounded-lg text-yellow-200 text-sm mb-4">
                   <p className="font-medium mb-1">No colleges found for this campus</p>
                   <p className="text-xs">
                     Please create a new campus with colleges selected, or contact an administrator to add colleges to this campus.
                   </p>
-                  <Link 
+                  <Link
                     href="/data"
                     className="text-yellow-300 hover:text-yellow-100 text-xs underline mt-2 inline-block"
                   >
@@ -519,7 +525,7 @@ export default function StudentsPage({ params }: StudentsPageProps) {
                   <p className="text-xs mt-1">
                     Go to the Data Management page and create a new branch with departments, or contact an administrator to add departments to this college.
                   </p>
-                  <Link 
+                  <Link
                     href="/data"
                     className="text-yellow-300 hover:text-yellow-100 text-xs underline mt-2 inline-block"
                   >
@@ -575,10 +581,10 @@ export default function StudentsPage({ params }: StudentsPageProps) {
                   </div>
 
                   <div className="flex justify-end">
-                    <Button 
-                      variant="primary" 
-                      icon={<Save className="w-4 h-4" />} 
-                      onClick={handleSave} 
+                    <Button
+                      variant="primary"
+                      icon={<Save className="w-4 h-4" />}
+                      onClick={handleSave}
                       className="w-full sm:w-auto"
                       disabled={saving}
                     >

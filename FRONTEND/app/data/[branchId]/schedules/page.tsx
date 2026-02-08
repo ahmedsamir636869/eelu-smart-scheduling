@@ -101,6 +101,9 @@ export default function SchedulesPage() {
             const mappedSchedules: Schedule[] = apiSchedules.map((s: any) => {
                 const isPublished = publishedIds.includes(s.id)
 
+                // Get the schedule's college name for fallback
+                const scheduleCollegeName = s.collegeName || s.college?.name || 'General'
+
                 // Map sessions to events
                 const events: ScheduleEvent[] = (s.sessions || []).map((session: any) => {
                     // Basic Day Mapping
@@ -131,6 +134,12 @@ export default function SchedulesPage() {
                     const type = session.type === 'SECTION' ? 'lab' : 'lecture'
                     const colorConfig = EVENT_COLORS[type] || EVENT_COLORS.lecture
 
+                    // Get college from session, course, or fallback to schedule's college
+                    const eventCollege = session.course?.college?.name ||
+                        session.college?.name ||
+                        session.course?.collegeName ||
+                        scheduleCollegeName
+
                     return {
                         id: session.id,
                         title: session.name || session.course?.name || 'Untitled Session',
@@ -146,7 +155,7 @@ export default function SchedulesPage() {
                         studentCount: session.studentCount,
                         roomCapacity: session.classroom?.capacity,
                         year: session.course?.year,
-                        college: session.course?.college?.name || session.college?.name
+                        college: eventCollege
                     }
                 })
 
@@ -154,7 +163,7 @@ export default function SchedulesPage() {
                     id: s.id,
                     name: `${s.semester} ${s.generatedBy || 'Schedule'}`,
                     collegeId: s.collegeId || 'unknown',
-                    collegeName: s.collegeName || 'General',
+                    collegeName: scheduleCollegeName,
                     status: isPublished ? 'published' : 'draft',
                     events: events,
                     createdAt: s.createdAt || new Date().toISOString(),
