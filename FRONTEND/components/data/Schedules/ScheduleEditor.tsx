@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { X, Save, Upload, ArrowLeft, Calendar, Cpu, User } from 'lucide-react'
+import { useState, useMemo } from 'react'
+import { X, Save, Upload, ArrowLeft, Calendar, Cpu, User, Filter } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { ScheduleCalendar } from './ScheduleCalendar'
 import { Schedule, ScheduleEvent, DayOfWeek } from './types'
@@ -23,6 +23,8 @@ export function ScheduleEditor({
     const [events, setEvents] = useState<ScheduleEvent[]>(schedule.events)
     const [saving, setSaving] = useState(false)
     const [hasChanges, setHasChanges] = useState(false)
+    const [levelFilter, setLevelFilter] = useState<string>('all')
+    const [collegeFilter, setCollegeFilter] = useState<string>('all')
 
     const handleEventMove = (
         eventId: string,
@@ -39,6 +41,21 @@ export function ScheduleEditor({
         )
         setHasChanges(true)
     }
+
+    // Extract unique colleges from events for filter options
+    const uniqueColleges = useMemo(() => {
+        const colleges = new Set<string>()
+        events.forEach(e => {
+            if (e.college) colleges.add(e.college)
+        })
+        return Array.from(colleges).sort()
+    }, [events])
+
+    const filteredEvents = events.filter(e => {
+        const matchesLevel = levelFilter === 'all' || e.year?.toString() === levelFilter
+        const matchesCollege = collegeFilter === 'all' || e.college === collegeFilter
+        return matchesLevel && matchesCollege
+    })
 
     const handleSaveAsDraft = async () => {
         try {
@@ -140,31 +157,66 @@ export function ScheduleEditor({
                 </div>
             </div>
 
-            {/* Calendar Content */}
-            <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-                <div className="mb-4">
+            {/* Filters and Legend */}
+            <div className="px-4 sm:px-6 py-3 bg-gray-900/50 border-b border-gray-700">
+                <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
                     <div className="flex flex-wrap items-center gap-4 text-sm">
                         <span className="text-gray-400">Color Legend:</span>
                         <div className="flex items-center gap-2">
-                            <span className="w-3 h-3 rounded bg-blue-500"></span>
-                            <span className="text-blue-300">Lecture</span>
+                            <span className="w-3 h-3 rounded bg-blue-500"></span><span className="text-blue-300">Level (Y2)</span>
                         </div>
                         <div className="flex items-center gap-2">
-                            <span className="w-3 h-3 rounded bg-purple-500"></span>
-                            <span className="text-purple-300">Lab</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            <span className="w-3 h-3 rounded bg-teal-500"></span>
-                            <span className="text-teal-300">Tutorial</span>
+                            <p className="text-gray-500 text-xs">
+                                Colors indicate Year/Level.
+                            </p>
                         </div>
                     </div>
-                    <p className="text-gray-500 text-xs mt-2">
-                        💡 You can drag and drop lectures to move them between different slots
-                    </p>
-                </div>
 
+                    {/* Filter Controls */}
+                    <div className="flex items-center gap-4">
+                        {/* College Filter */}
+                        {uniqueColleges.length > 0 && (
+                            <div className="flex items-center gap-2">
+                                <Filter className="w-4 h-4 text-gray-400" />
+                                <span className="text-gray-400 text-sm">College:</span>
+                                <select
+                                    className="bg-gray-800 border-gray-700 text-white text-sm rounded-md p-1.5 focus:ring-teal-500 focus:border-teal-500 outline-none"
+                                    value={collegeFilter}
+                                    onChange={(e) => setCollegeFilter(e.target.value)}
+                                >
+                                    <option value="all" className="bg-gray-800 text-white">All Colleges</option>
+                                    {uniqueColleges.map(c => (
+                                        <option key={c} value={c} className="bg-gray-800 text-white">{c}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
+
+                        {/* Level Filter */}
+                        <div className="flex items-center gap-2">
+                            <span className="text-gray-400 text-sm">Level:</span>
+                            <select
+                                className="bg-gray-800 border-gray-700 text-white text-sm rounded-md p-1.5 focus:ring-teal-500 focus:border-teal-500 outline-none"
+                                value={levelFilter}
+                                onChange={(e) => setLevelFilter(e.target.value)}
+                            >
+                                <option value="all" className="bg-gray-800 text-white">All Levels</option>
+                                <option value="1" className="bg-gray-800 text-white">Year 1</option>
+                                <option value="2" className="bg-gray-800 text-white">Year 2</option>
+                                <option value="3" className="bg-gray-800 text-white">Year 3</option>
+                                <option value="4" className="bg-gray-800 text-white">Year 4</option>
+                                <option value="5" className="bg-gray-800 text-white">Year 5</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+
+            {/* Calendar Content */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6">
                 <ScheduleCalendar
-                    events={events}
+                    events={filteredEvents}
                     onEventMove={handleEventMove}
                     isEditable={true}
                 />

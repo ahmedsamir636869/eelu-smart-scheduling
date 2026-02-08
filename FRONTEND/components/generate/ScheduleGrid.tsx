@@ -226,15 +226,23 @@ function SessionCard({ session }: { session: ScheduleSession }) {
         </div>
 
         {/* Location and Capacity */}
+        {/* Location and Capacity */}
         <div className="flex flex-col gap-1 text-gray-300 text-xs">
           <div className="flex items-center gap-1">
             <MapPin className="w-3 h-3 flex-shrink-0" />
             <span className="truncate">{session.location}</span>
           </div>
-          {(session.studentCount && session.roomCapacity) && (
-            <div className="flex items-center gap-1 ml-4 text-gray-400">
+          {session.roomCapacity !== undefined && (
+            <div className="flex items-center gap-1 text-gray-400 ml-1">
               <span className="truncate">
-                Cap: {session.studentCount} / {session.roomCapacity}
+                Capacity: {session.roomCapacity}
+              </span>
+            </div>
+          )}
+          {session.studentCount !== undefined && (
+            <div className="flex items-center gap-1 text-gray-400 ml-1">
+              <span className="truncate">
+                Students: {session.studentCount}
               </span>
             </div>
           )}

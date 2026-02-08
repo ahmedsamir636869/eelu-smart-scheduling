@@ -19,6 +19,10 @@ export interface ScheduleEvent {
     endTime: string
     color?: string
     type: 'lecture' | 'lab' | 'tutorial'
+    roomCapacity?: number
+    studentCount?: number
+    year?: number
+    college?: string
 }
 
 export type DayOfWeek = 'Sunday' | 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday'

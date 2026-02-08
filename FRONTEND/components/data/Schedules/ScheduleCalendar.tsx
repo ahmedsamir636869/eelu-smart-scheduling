@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback } from 'react'
 import { GripVertical, Clock, MapPin, User } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
@@ -32,7 +32,7 @@ export function ScheduleCalendar({ events, onEventMove, isEditable = true }: Sch
     const getEventsForSlot = useCallback(
         (day: DayOfWeek, slotStartTime: string, slotEndTime: string) => {
             if (!events || events.length === 0) return []
-            
+
             const slotStart = parseTimeToMinutes(slotStartTime)
             const slotEnd = parseTimeToMinutes(slotEndTime)
             const slotIdx = TIME_SLOTS.findIndex(s => s.startTime === slotStartTime)
@@ -42,42 +42,31 @@ export function ScheduleCalendar({ events, onEventMove, isEditable = true }: Sch
 
             const matchedEvents = events.filter((event) => {
                 if (!event || !event.day || !event.startTime) return false
-                
+
                 // Normalize day names for comparison (case-insensitive, handle variations)
                 const eventDay = String(event.day).trim()
                 const slotDay = String(day).trim()
-                
+
                 // Direct match
                 if (eventDay.toLowerCase() === slotDay.toLowerCase()) {
-                    // Parse event times
                     const eventStart = parseTimeToMinutes(event.startTime)
-                    
-                    // Debug logging
-                    if (process.env.NODE_ENV === 'development' && slotStart === 480) {
-                        console.log(`Checking ${event.courseCode} (${event.startTime}) for slot ${slotStartTime}-${slotEndTime}:`, {
-                            eventStart,
-                            slotStart,
-                            nextSlotStart,
-                            inRange: eventStart >= slotStart && eventStart < nextSlotStart
-                        })
-                    }
-                    
+
                     // Event belongs to this slot if it starts within the slot range
                     // For consecutive slots: eventStart >= slotStart && eventStart < nextSlotStart
                     if (eventStart >= slotStart && eventStart < nextSlotStart) {
                         return true
                     }
-                    
+
                     // Also check if event overlaps with the slot (for events that span multiple slots)
                     const eventEnd = parseTimeToMinutes(event.endTime || event.startTime)
                     if (eventStart < slotEnd && eventEnd > slotStart) {
                         return true
                     }
                 }
-                
+
                 return false
             })
-            
+
             return matchedEvents
         },
         [events]
@@ -177,14 +166,14 @@ export function ScheduleCalendar({ events, onEventMove, isEditable = true }: Sch
                                     <div
                                         key={`${day}-${slot.id}`}
                                         className={cn(
-                                            'min-h-[120px] p-1.5 border-r border-gray-700 last:border-r-0 transition-all duration-200',
+                                            'min-h-[140px] p-2 border-r border-gray-700 last:border-r-0 transition-all duration-200',
                                             dayIndex % 2 === 0 ? 'bg-gray-850' : 'bg-gray-800',
                                             dayIndex < DAYS_OF_WEEK.length - 1 && 'border-b',
                                             isDropTarget && 'bg-teal-500/20 border-2 border-dashed border-teal-500',
                                             isEditable && 'hover:bg-gray-700/50'
                                         )}
-                                        style={{ 
-                                            minHeight: slotEvents.length > 0 ? `${Math.max(120, slotEvents.length * 140)}px` : '120px'
+                                        style={{
+                                            minHeight: slotEvents.length > 0 ? `${Math.max(140, slotEvents.length * 150)}px` : '140px'
                                         }}
                                         onDragOver={(e) => handleDragOver(e, day, slot.startTime)}
                                         onDragLeave={handleDragLeave}
@@ -223,8 +212,49 @@ interface EventCardProps {
     onDragEnd: () => void
 }
 
+// Color mapping based on year/level (reused from logic)
+const getYearColors = (year?: number, type: 'lecture' | 'lab' | 'tutorial' = 'lecture') => {
+    // Default colors if year is not available or is 0
+    if (!year || year === 0) {
+        return EVENT_COLORS[type] || EVENT_COLORS.lecture
+    }
+
+    // Year-based color schemes
+    const yearColors: Record<number, { lecture: any, lab: any, tutorial: any }> = {
+        1: {
+            lecture: { bg: 'bg-green-600/30', border: 'border-green-500', text: 'text-green-300', badge: 'bg-green-500/30 text-green-300' },
+            lab: { bg: 'bg-emerald-600/30', border: 'border-emerald-500', text: 'text-emerald-300', badge: 'bg-emerald-500/30 text-emerald-300' },
+            tutorial: { bg: 'bg-emerald-600/30', border: 'border-emerald-500', text: 'text-emerald-300', badge: 'bg-emerald-500/30 text-emerald-300' }
+        },
+        2: {
+            lecture: { bg: 'bg-blue-600/30', border: 'border-blue-500', text: 'text-blue-300', badge: 'bg-blue-500/30 text-blue-300' },
+            lab: { bg: 'bg-cyan-600/30', border: 'border-cyan-500', text: 'text-cyan-300', badge: 'bg-cyan-500/30 text-cyan-300' },
+            tutorial: { bg: 'bg-cyan-600/30', border: 'border-cyan-500', text: 'text-cyan-300', badge: 'bg-cyan-500/30 text-cyan-300' }
+        },
+        3: {
+            lecture: { bg: 'bg-purple-600/30', border: 'border-purple-500', text: 'text-purple-300', badge: 'bg-purple-500/30 text-purple-300' },
+            lab: { bg: 'bg-violet-600/30', border: 'border-violet-500', text: 'text-violet-300', badge: 'bg-violet-500/30 text-violet-300' },
+            tutorial: { bg: 'bg-violet-600/30', border: 'border-violet-500', text: 'text-violet-300', badge: 'bg-violet-500/30 text-violet-300' }
+        },
+        4: {
+            lecture: { bg: 'bg-orange-600/30', border: 'border-orange-500', text: 'text-orange-300', badge: 'bg-orange-500/30 text-orange-300' },
+            lab: { bg: 'bg-amber-600/30', border: 'border-amber-500', text: 'text-amber-300', badge: 'bg-amber-500/30 text-amber-300' },
+            tutorial: { bg: 'bg-amber-600/30', border: 'border-amber-500', text: 'text-amber-300', badge: 'bg-amber-500/30 text-amber-300' }
+        },
+        5: {
+            lecture: { bg: 'bg-red-600/30', border: 'border-red-500', text: 'text-red-300', badge: 'bg-red-500/30 text-red-300' },
+            lab: { bg: 'bg-rose-600/30', border: 'border-rose-500', text: 'text-rose-300', badge: 'bg-rose-500/30 text-rose-300' },
+            tutorial: { bg: 'bg-rose-600/30', border: 'border-rose-500', text: 'text-rose-300', badge: 'bg-rose-500/30 text-rose-300' }
+        }
+    }
+
+    // Default to year 1 if year is out of range
+    const yearKey = year >= 1 && year <= 5 ? year : 1
+    return yearColors[yearKey][type]
+}
+
 function EventCard({ event, isDragging, isEditable, onDragStart, onDragEnd }: EventCardProps) {
-    const colors = EVENT_COLORS[event.type] || EVENT_COLORS.lecture
+    const colors = getYearColors(event.year, event.type)
 
     return (
         <div
@@ -232,7 +262,7 @@ function EventCard({ event, isDragging, isEditable, onDragStart, onDragEnd }: Ev
             onDragStart={onDragStart}
             onDragEnd={onDragEnd}
             className={cn(
-                'rounded-lg p-2 border transition-all duration-200',
+                'rounded-lg p-3 border-2 transition-all duration-200',
                 colors.bg,
                 colors.border,
                 isDragging && 'opacity-50 scale-95',
@@ -247,31 +277,69 @@ function EventCard({ event, isDragging, isEditable, onDragStart, onDragEnd }: Ev
             )}
 
             {/* Course Info */}
-            <div className="space-y-1">
-                <div className={cn('font-semibold text-xs', colors.text)}>
+            <div className="space-y-2">
+                <div className={cn('font-bold text-sm', colors.text)}>
                     {event.courseCode}
                 </div>
-                <div className="text-white text-xs font-medium truncate">
+                <div className="text-white text-sm font-medium line-clamp-2">
                     {event.courseName}
                 </div>
-                <div className="flex items-center gap-1 text-gray-400 text-[10px]">
-                    <User className="w-3 h-3" />
+                {/* College Info if available */}
+                {event.college && (
+                    <div className="text-gray-400 text-xs truncate flex items-center gap-1">
+                        <span className="w-1 h-3 bg-gray-600 rounded-full inline-block"></span>
+                        {event.college}
+                    </div>
+                )}
+
+                <div className="flex items-center gap-1 text-gray-300 text-xs">
+                    <User className="w-3 h-3 flex-shrink-0" />
                     <span className="truncate">{event.instructor}</span>
                 </div>
-                <div className="flex items-center gap-1 text-gray-400 text-[10px]">
-                    <MapPin className="w-3 h-3" />
-                    <span className="truncate">{event.location}</span>
+
+                {/* Location and Capacity */}
+                <div className="flex flex-col gap-1 text-gray-300 text-xs">
+                    <div className="flex items-center gap-1">
+                        <MapPin className="w-3 h-3 flex-shrink-0" />
+                        <span className="truncate">{event.location}</span>
+                    </div>
+                    {(event.roomCapacity !== undefined || event.studentCount !== undefined) && (
+                        <div className="flex flex-col gap-0.5 mt-0.5 border-l-2 border-gray-700 pl-2">
+                            {event.roomCapacity !== undefined && (
+                                <div className="flex items-center gap-1 text-gray-400">
+                                    <span className="truncate">Capacity: {event.roomCapacity}</span>
+                                </div>
+                            )}
+                            {event.studentCount !== undefined && (
+                                <div className="flex items-center gap-1 text-gray-400">
+                                    <span className="truncate">Students: {event.studentCount}</span>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
 
             {/* Type Badge */}
-            <div className="mt-2">
+            <div className="mt-2 flex items-center gap-2 flex-wrap">
+                {(event.year !== undefined && event.year !== null) && (
+                    <span
+                        className={cn(
+                            'px-2 py-1 rounded text-xs font-medium',
+                            (colors as any).badge ? (colors as any).badge :
+                                (event.type === 'lecture' ? 'bg-blue-500/30 text-blue-300' :
+                                    event.type === 'lab' ? 'bg-purple-500/30 text-purple-300' : 'bg-teal-500/30 text-teal-300')
+                        )}
+                    >
+                        Year {event.year}
+                    </span>
+                )}
                 <span
                     className={cn(
-                        'px-1.5 py-0.5 rounded text-[10px] font-medium',
-                        event.type === 'lecture' && 'bg-blue-500/30 text-blue-300',
-                        event.type === 'lab' && 'bg-purple-500/30 text-purple-300',
-                        event.type === 'tutorial' && 'bg-teal-500/30 text-teal-300'
+                        'px-2 py-1 rounded text-xs font-medium',
+                        (colors as any).badge ? (colors as any).badge :
+                            (event.type === 'lecture' ? 'bg-blue-500/30 text-blue-300' :
+                                event.type === 'lab' ? 'bg-purple-500/30 text-purple-300' : 'bg-teal-500/30 text-teal-300')
                     )}
                 >
                     {event.type === 'lecture' && 'Lecture'}

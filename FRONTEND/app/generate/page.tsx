@@ -20,6 +20,7 @@ export default function GeneratePage() {
   const [branches, setBranches] = useState<{ value: string; label: string }[]>([])
   const [selectedBranch, setSelectedBranch] = useState('')
   const [loading, setLoading] = useState(false)
+  const [initialLoading, setInitialLoading] = useState(true)
   const [loadingType, setLoadingType] = useState<'lectures' | 'sections' | null>(null)
   const [error, setError] = useState('')
   const [semester, setSemester] = useState('Fall 2024')
@@ -30,6 +31,7 @@ export default function GeneratePage() {
   useEffect(() => {
     const fetchCampuses = async () => {
       try {
+        setInitialLoading(true)
         const campuses = await campusApi.getAll()
         const branchOptions = campuses.map((campus: any) => ({
           value: campus.id,
@@ -42,6 +44,8 @@ export default function GeneratePage() {
       } catch (err) {
         console.error('Failed to fetch campuses:', err)
         setError('Failed to load campuses. Please refresh the page.')
+      } finally {
+        setInitialLoading(false)
       }
     }
 
@@ -59,10 +63,10 @@ export default function GeneratePage() {
     try {
       // Check if lectures schedule exists by fetching schedules
       const schedules = await scheduleApi.getAll()
-      const lecturesSchedule = Array.isArray(schedules) 
-        ? schedules.find((s: any) => 
-            s.semester === semester && s.generatedBy === 'AI-GA-Lectures'
-          )
+      const lecturesSchedule = Array.isArray(schedules)
+        ? schedules.find((s: any) =>
+          s.semester === semester && s.generatedBy === 'AI-GA-Lectures'
+        )
         : null
       setHasLecturesSchedule(!!lecturesSchedule)
     } catch (err) {
@@ -101,7 +105,7 @@ export default function GeneratePage() {
       } else {
         setGeneratedSchedule(result)
       }
-      
+
       // Refresh lectures schedule check
       if (scheduleType === 'lectures') {
         setHasLecturesSchedule(true)
@@ -141,12 +145,12 @@ export default function GeneratePage() {
     try {
       const schedules = await scheduleApi.getAll()
       const currentSchedule = Array.isArray(schedules)
-        ? schedules.find((s: any) => 
-            s.semester === semester && 
-            (s.generatedBy === 'AI-GA-Lectures' || s.generatedBy === 'AI-GA' || s.generatedBy === 'AI-GA-Sections')
-          )
+        ? schedules.find((s: any) =>
+          s.semester === semester &&
+          (s.generatedBy === 'AI-GA-Lectures' || s.generatedBy === 'AI-GA' || s.generatedBy === 'AI-GA-Sections')
+        )
         : null
-      
+
       if (currentSchedule && currentSchedule.id) {
         try {
           const fullSchedule = await scheduleApi.getById(currentSchedule.id)
@@ -177,28 +181,35 @@ export default function GeneratePage() {
             {error}
           </div>
         )}
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-            <ScheduleFormulaCard
-              branches={branches}
-              selectedBranch={selectedBranch}
-              onBranchChange={setSelectedBranch}
-              onRunCalculations={handleRunCalculations}
-              loading={loading}
-              loadingType={loadingType}
-              semester={semester}
-              onSemesterChange={setSemester}
-              hasLecturesSchedule={hasLecturesSchedule}
-            />
-            <ConflictResolutionCard onResolveConflicts={handleResolveConflicts} />
-            <PerformanceInsightCard metrics={mockMetrics} />
+
+        {initialLoading ? (
+          <div className="flex flex-col items-center justify-center min-h-[60vh]">
+            <div className="w-12 h-12 border-4 border-teal-500/30 border-t-teal-500 rounded-full animate-spin mb-4"></div>
+            <p className="text-gray-400">Loading configuration...</p>
           </div>
-          
-          {/* Generated Schedule View */}
-          <GeneratedScheduleView schedule={generatedSchedule} loading={loading} />
-        </div>
+        ) : (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+              <ScheduleFormulaCard
+                branches={branches}
+                selectedBranch={selectedBranch}
+                onBranchChange={setSelectedBranch}
+                onRunCalculations={handleRunCalculations}
+                loading={loading}
+                loadingType={loadingType}
+                semester={semester}
+                onSemesterChange={setSemester}
+                hasLecturesSchedule={hasLecturesSchedule}
+              />
+              <ConflictResolutionCard onResolveConflicts={handleResolveConflicts} />
+              <PerformanceInsightCard metrics={mockMetrics} />
+            </div>
+
+            {/* Generated Schedule View */}
+            <GeneratedScheduleView schedule={generatedSchedule} loading={loading} />
+          </div>
+        )}
       </MainLayout>
     </ProtectedRoute>
   )
 }
-

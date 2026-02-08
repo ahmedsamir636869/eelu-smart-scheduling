@@ -1,8 +1,9 @@
 'use client'
 
+import { useState, useMemo } from 'react'
 import { Card } from '@/components/ui/Card'
 import { ScheduleGrid, ScheduleSession } from './ScheduleGrid'
-import { Calendar, BookOpen, Users, Download, FileJson, FileSpreadsheet } from 'lucide-react'
+import { Calendar, BookOpen, Users, Download, FileJson, FileSpreadsheet, Filter } from 'lucide-react'
 
 interface GeneratedScheduleViewProps {
   schedule: {
@@ -21,6 +22,9 @@ interface GeneratedScheduleViewProps {
         code: string
         name: string
         year?: number
+        college?: {
+          name: string
+        }
       }
       instructor?: {
         name: string
@@ -35,6 +39,9 @@ interface GeneratedScheduleViewProps {
 }
 
 export function GeneratedScheduleView({ schedule, loading }: GeneratedScheduleViewProps) {
+  const [levelFilter, setLevelFilter] = useState<string>('all')
+  const [collegeFilter, setCollegeFilter] = useState<string>('all')
+
   // Convert sessions to ScheduleSession format
   const convertSessionsToSchedule = (): ScheduleSession[] => {
     if (!schedule || !schedule.sessions || schedule.sessions.length === 0) {
@@ -103,11 +110,39 @@ export function GeneratedScheduleView({ schedule, loading }: GeneratedScheduleVi
           studentCount: session.studentCount,
           roomCapacity: session.classroom?.capacity, // capacity is now fetched
           group: groupName,
-        }
+          // Extract college name assuming it might be in course.college.name (based on our previous deductions)
+          // Since the interface passed to this component has defined course, check if college exists there.
+          // Note: The interface in Props definition above needs to support it. I updated it.
+          // We can't access `session.college` easily if it's not in the type definition, but usually JS allows it.
+          // I added college?: { name: string } to the interface in this file.
+          college: session.course?.college?.name
+        } as any // cast as any to add extra prop if needed, or update ScheduleSession interface in ScheduleGrid? 
+        // Wait, GeneratedScheduleView converts to ScheduleSession. I should update ScheduleSession interface too?
+        // Let's check ScheduleGrid.tsx to see if I need to update the interface there. 
+        // Actually I don't need to update ScheduleGrid interface if I only filter here.
+        // But for consistency I should probably store it. 
+        // For filtering *here*, I need it.
       })
   }
 
-  const sessions = convertSessionsToSchedule()
+  const allSessions = convertSessionsToSchedule()
+
+  // Extract unique colleges
+  const uniqueColleges = useMemo(() => {
+    const colleges = new Set<string>()
+    allSessions.forEach((s: any) => { // using any because ScheduleSession might not have college yet
+      if (s.college) colleges.add(s.college)
+    })
+    return Array.from(colleges).sort()
+  }, [allSessions]) // Dependencies might need check, but allSessions is derived from prop.
+
+  // Filter sessions
+  const sessions = allSessions.filter((session: any) => {
+    const matchesLevel = levelFilter === 'all' || session.year?.toString() === levelFilter
+    const matchesCollege = collegeFilter === 'all' || session.college === collegeFilter
+    return matchesLevel && matchesCollege
+  })
+
   const lectureCount = sessions.filter(s => s.type === 'lecture').length
   const labCount = sessions.filter(s => s.type === 'lab').length
 
@@ -132,7 +167,8 @@ export function GeneratedScheduleView({ schedule, loading }: GeneratedScheduleVi
         endTime: session.endTime,
         studentCount: session.studentCount,
         type: session.type,
-        year: session.course?.year
+        year: session.course?.year,
+        college: session.course?.college?.name
       }))
     }
 
@@ -153,7 +189,7 @@ export function GeneratedScheduleView({ schedule, loading }: GeneratedScheduleVi
     if (!schedule || !schedule.sessions) return
 
     // Create CSV content
-    const headers = ['Day', 'Course Name', 'Course Code', 'Instructor', 'Room', 'Start Time', 'End Time', 'Students', 'Type', 'Year']
+    const headers = ['Day', 'Course Name', 'Course Code', 'College', 'Instructor', 'Room', 'Start Time', 'End Time', 'Students', 'Type', 'Year']
 
     const dayMap: Record<string, string> = {
       'SATURDAY': 'Saturday',
@@ -182,6 +218,7 @@ export function GeneratedScheduleView({ schedule, loading }: GeneratedScheduleVi
       dayMap[session.day || ''] || session.day || '',
       session.course?.name || session.name,
       session.course?.code || '',
+      session.course?.college?.name || '',
       session.instructor?.name || 'Unassigned',
       session.classroom?.name || 'TBA',
       formatTime(session.startTime),
@@ -197,7 +234,7 @@ export function GeneratedScheduleView({ schedule, loading }: GeneratedScheduleVi
       const dayA = dayOrder.indexOf(a[0])
       const dayB = dayOrder.indexOf(b[0])
       if (dayA !== dayB) return dayA - dayB
-      return a[5].localeCompare(b[5]) // Sort by start time
+      return a[6].localeCompare(b[6]) // Sort by start time (index 6 now)
     })
 
     // Escape CSV values
@@ -231,7 +268,8 @@ export function GeneratedScheduleView({ schedule, loading }: GeneratedScheduleVi
       <Card>
         <div className="p-6">
           <h3 className="text-white font-bold text-lg mb-4">Generated Schedule</h3>
-          <div className="text-center py-12 text-gray-400">
+          <div className="flex flex-col items-center justify-center py-12 text-gray-400">
+            <div className="w-8 h-8 border-4 border-teal-500/30 border-t-teal-500 rounded-full animate-spin mb-4"></div>
             Generating schedule...
           </div>
         </div>
@@ -239,7 +277,7 @@ export function GeneratedScheduleView({ schedule, loading }: GeneratedScheduleVi
     )
   }
 
-  if (!schedule || sessions.length === 0) {
+  if (!schedule || allSessions.length === 0) {
     return (
       <Card>
         <div className="p-6">
@@ -279,21 +317,57 @@ export function GeneratedScheduleView({ schedule, loading }: GeneratedScheduleVi
                 </div>
               </div>
 
-              {/* Export Buttons */}
+              {/* Action Buttons */}
               <div className="flex gap-2">
+                {/* Filters */}
+
+                {/* College Filter */}
+                {uniqueColleges.length > 0 && (
+                  <div className="flex items-center gap-2 mr-2 bg-gray-800 rounded-lg px-3 border border-gray-600">
+                    <Filter className="w-3 h-3 text-gray-400" />
+                    <select
+                      className="bg-transparent border-none text-white text-sm py-2 focus:ring-0 outline-none cursor-pointer"
+                      value={collegeFilter}
+                      onChange={(e) => setCollegeFilter(e.target.value)}
+                    >
+                      <option value="all" className="bg-gray-800 text-white">All Colleges</option>
+                      {uniqueColleges.map((c: string) => (
+                        <option key={c} value={c} className="bg-gray-800 text-white">{c}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Level Filter */}
+                <div className="flex items-center gap-2 mr-2 bg-gray-800 rounded-lg px-3 border border-gray-600">
+                  <Filter className="w-3 h-3 text-gray-400" />
+                  <select
+                    className="bg-transparent border-none text-white text-sm py-2 focus:ring-0 outline-none cursor-pointer"
+                    value={levelFilter}
+                    onChange={(e) => setLevelFilter(e.target.value)}
+                  >
+                    <option value="all" className="bg-gray-800 text-white">All Levels</option>
+                    <option value="1" className="bg-gray-800 text-white">Year 1</option>
+                    <option value="2" className="bg-gray-800 text-white">Year 2</option>
+                    <option value="3" className="bg-gray-800 text-white">Year 3</option>
+                    <option value="4" className="bg-gray-800 text-white">Year 4</option>
+                    <option value="5" className="bg-gray-800 text-white">Year 5</option>
+                  </select>
+                </div>
+
                 <button
                   onClick={exportToExcel}
                   className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors"
                 >
                   <FileSpreadsheet className="w-4 h-4" />
-                  Export Excel
+                  Excel
                 </button>
                 <button
                   onClick={exportToJSON}
                   className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
                 >
                   <FileJson className="w-4 h-4" />
-                  Export JSON
+                  JSON
                 </button>
               </div>
             </div>
@@ -351,4 +425,3 @@ export function GeneratedScheduleView({ schedule, loading }: GeneratedScheduleVi
     </div>
   )
 }
-
