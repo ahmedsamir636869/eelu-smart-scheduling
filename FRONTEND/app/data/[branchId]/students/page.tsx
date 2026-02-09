@@ -119,6 +119,8 @@ export default function StudentsPage({ params }: StudentsPageProps) {
 
       // Fetch campus info (includes colleges)
       const campus = await campusApi.getById(branchId)
+      let campusCollegeIds: string[] = []
+
       if (campus) {
         const displayName = campus.city
           ? `${campus.name} - ${campus.city}`
@@ -129,14 +131,22 @@ export default function StudentsPage({ params }: StudentsPageProps) {
         // If campus has colleges, use them
         if (campus.colleges && campus.colleges.length > 0) {
           setColleges(campus.colleges)
+          campusCollegeIds = campus.colleges.map((c: any) => c.id)
         }
       }
 
       // Fetch student groups
       const studentGroups = await studentGroupApi.getAll()
 
-      // Filter by level and transform to sections
-      const filteredGroups = studentGroups.filter((group: any) => group.year === selectedLevel)
+      // Filter by campus colleges AND level
+      const filteredGroups = studentGroups.filter((group: any) => {
+        // Check if group belongs to this campus (via college)
+        const belongsToCampus = campusCollegeIds.length === 0 ||
+          (group.department?.college && campusCollegeIds.includes(group.department.college.id))
+        // Check level
+        const matchesLevel = group.year === selectedLevel
+        return belongsToCampus && matchesLevel
+      })
 
       const transformedSections: Section[] = filteredGroups.map((group: any, index: number) => ({
         id: index + 1,

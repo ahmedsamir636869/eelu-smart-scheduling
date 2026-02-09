@@ -47,28 +47,45 @@ export default function InstructorsPage({ params }: InstructorsPageProps) {
     try {
       setLoading(true)
       setError('')
-      
+
       // Fetch campus info
       const campus = await campusApi.getById(branchId)
+      let campusDepartmentIds: string[] = []
+
       if (campus) {
-        const displayName = campus.city 
-          ? `${campus.name} - ${campus.city}` 
+        const displayName = campus.city
+          ? `${campus.name} - ${campus.city}`
           : campus.name
         setBranchName(displayName)
+
+        // Get all department IDs for this campus's colleges
+        if (campus.colleges && campus.colleges.length > 0) {
+          for (const college of campus.colleges) {
+            try {
+              const depts = await import('@/lib/api').then(m => m.departmentApi.getAll(college.id))
+              campusDepartmentIds.push(...depts.map((d: any) => d.id))
+            } catch (err) {
+              console.warn(`Failed to fetch departments for college ${college.id}:`, err)
+            }
+          }
+        }
       }
 
       // Fetch all instructors
-      const instructorsData = await instructorApi.getAll()
-      
+      const allInstructorsData = await instructorApi.getAll()
+
+      // Filter instructors by campus departments
+      const instructorsData = campusDepartmentIds.length > 0
+        ? allInstructorsData.filter((instructor: any) => campusDepartmentIds.includes(instructor.departmentId))
+        : []
+
       // Debug: Log instructor data structure
+      console.log('Filtered instructors count:', instructorsData.length)
       console.log('Instructors data sample:', instructorsData.slice(0, 2))
-      console.log('First instructor full data:', instructorsData[0])
       if (instructorsData[0]) {
-        console.log('First instructor startTime:', instructorsData[0].startTime, typeof instructorsData[0].startTime)
-        console.log('First instructor endTime:', instructorsData[0].endTime, typeof instructorsData[0].endTime)
-        console.log('First instructor day:', instructorsData[0].day)
+        console.log('First instructor full data:', instructorsData[0])
       }
-      
+
       // Group instructors by name (since each time slot creates a separate record)
       const instructorMap = new Map<string, {
         id: string
@@ -79,7 +96,7 @@ export default function InstructorsPage({ params }: InstructorsPageProps) {
         timeSlots: Array<{ day: string, startTime: string | Date | null, endTime: string | Date | null }> // Store all time slots with day
         courses: Array<{ id: string, name: string, code: string }> // Store all assigned courses
       }>()
-      
+
       // Map day enum to short format
       const dayMap: Record<string, string> = {
         'SATURDAY': 'Sat',
@@ -90,22 +107,22 @@ export default function InstructorsPage({ params }: InstructorsPageProps) {
         'THURSDAY': 'Thu',
         'FRIDAY': 'Fri'
       }
-      
+
       // Helper function to calculate hours between two times
       const calculateHours = (startTime: string | Date | null, endTime: string | Date | null): number => {
         if (!startTime || !endTime) return 0
-        
+
         const start = new Date(startTime)
         const end = new Date(endTime)
-        
+
         if (isNaN(start.getTime()) || isNaN(end.getTime())) return 0
-        
+
         const diffMs = end.getTime() - start.getTime()
         const diffHours = diffMs / (1000 * 60 * 60) // Convert milliseconds to hours
-        
+
         return Math.max(0, diffHours) // Ensure non-negative
       }
-      
+
       // Group instructors by name and aggregate days and time slots
       instructorsData.forEach((instructor: any) => {
         const name = instructor.name.trim()
@@ -126,9 +143,9 @@ export default function InstructorsPage({ params }: InstructorsPageProps) {
             existing.allIds.push(instructor.id)
           }
         }
-        
+
         const existing = instructorMap.get(name)!
-        
+
         // Add day if it exists and not already added
         if (instructor.day) {
           const dayShort = dayMap[instructor.day] || instructor.day
@@ -136,7 +153,7 @@ export default function InstructorsPage({ params }: InstructorsPageProps) {
             existing.days.push(dayShort)
           }
         }
-        
+
         // Add time slot with day information for free time display
         if (instructor.startTime && instructor.endTime && instructor.day) {
           const dayShort = dayMap[instructor.day] || instructor.day
@@ -156,7 +173,7 @@ export default function InstructorsPage({ params }: InstructorsPageProps) {
             day: instructor.day
           })
         }
-        
+
         // Add assigned courses if they exist (avoid duplicates)
         if (instructor.assignedCourses && Array.isArray(instructor.assignedCourses)) {
           instructor.assignedCourses.forEach((course: { id: string, name: string, code: string }) => {
@@ -167,19 +184,19 @@ export default function InstructorsPage({ params }: InstructorsPageProps) {
           })
         }
       })
-      
+
       // Helper function to format time for display
       const formatTime = (time: string | Date | null | undefined): string => {
         if (!time) {
           return ''
         }
-        
+
         // Handle string time format like "8:00" or "08:00"
         if (typeof time === 'string' && time.match(/^\d{1,2}:\d{2}$/)) {
           const [hours, minutes] = time.split(':').map(Number)
           return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`
         }
-        
+
         try {
           const date = new Date(time)
           if (isNaN(date.getTime())) {
@@ -195,19 +212,19 @@ export default function InstructorsPage({ params }: InstructorsPageProps) {
           return ''
         }
       }
-      
+
       // Transform grouped instructors to frontend format
       const transformedInstructors: Instructor[] = Array.from(instructorMap.values()).map((instructor) => {
         // Calculate total weekly hours from all time slots
         const weeklyHours = instructor.timeSlots.reduce((total, slot) => {
           return total + calculateHours(slot.startTime, slot.endTime)
         }, 0)
-        
+
         // Format free time slots for display
         const freeTimeSlots = instructor.timeSlots.map(slot => {
           let formattedStart = formatTime(slot.startTime)
           let formattedEnd = formatTime(slot.endTime)
-          
+
           // Fallback: if formatting fails, try to extract time from string
           if (!formattedStart && slot.startTime) {
             const timeStr = String(slot.startTime)
@@ -220,7 +237,7 @@ export default function InstructorsPage({ params }: InstructorsPageProps) {
               formattedStart = timeStr.substring(0, 5)
             }
           }
-          
+
           if (!formattedEnd && slot.endTime) {
             const timeStr = String(slot.endTime)
             const timeMatch = timeStr.match(/T(\d{2}):(\d{2})/)
@@ -230,26 +247,26 @@ export default function InstructorsPage({ params }: InstructorsPageProps) {
               formattedEnd = timeStr.substring(0, 5)
             }
           }
-          
+
           console.log(`Formatting slot for ${instructor.name}: ${slot.day} ${slot.startTime} (${typeof slot.startTime}) -> ${formattedStart}, ${slot.endTime} (${typeof slot.endTime}) -> ${formattedEnd}`)
-          
+
           return {
             day: slot.day,
             startTime: formattedStart || 'N/A',
             endTime: formattedEnd || 'N/A'
           }
         }).filter(slot => slot.startTime !== 'N/A' && slot.endTime !== 'N/A') // Filter out invalid slots
-        .sort((a, b) => {
-          // Sort by day order
-          const dayOrder = ['Sat', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri']
-          return dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day)
-        })
-        
+          .sort((a, b) => {
+            // Sort by day order
+            const dayOrder = ['Sat', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri']
+            return dayOrder.indexOf(a.day) - dayOrder.indexOf(b.day)
+          })
+
         console.log(`Free time slots for ${instructor.name}:`, freeTimeSlots)
-        
+
         // Extract course names/codes for display
         const courseNames = instructor.courses.map(c => c.name || c.code)
-        
+
         return {
           id: instructor.id,
           name: instructor.name,
@@ -266,7 +283,7 @@ export default function InstructorsPage({ params }: InstructorsPageProps) {
           _courseObjects: instructor.courses // Store full course objects for reference
         } as Instructor & { _allIds?: string[], _originalName?: string, _timeSlots?: Array<any>, _courseObjects?: Array<any> }
       })
-      
+
       setInstructors(transformedInstructors)
     } catch (err) {
       const errorMessage =
@@ -307,7 +324,7 @@ export default function InstructorsPage({ params }: InstructorsPageProps) {
   const handleDelete = async (id: string) => {
     const instructor = instructors.find(i => i.id === id)
     if (!instructor) return
-    
+
     if (!confirm(`Are you sure you want to delete ${instructor.name} and all their time slot assignments?`)) {
       return
     }
@@ -317,10 +334,10 @@ export default function InstructorsPage({ params }: InstructorsPageProps) {
       // Delete all Instructor records for this instructor (all time slots)
       const instructorWithIds = instructor as Instructor & { _allIds?: string[] }
       const idsToDelete = instructorWithIds._allIds || [id]
-      
+
       // Delete all records
       await Promise.all(idsToDelete.map(instructorId => instructorApi.delete(instructorId)))
-      
+
       // Refresh the list
       await fetchCampusAndInstructors()
     } catch (err) {
@@ -347,17 +364,17 @@ export default function InstructorsPage({ params }: InstructorsPageProps) {
         // Note: Backend instructor model doesn't have all these fields
         // You may need to update the backend schema or use a different approach
       })
-      
-      setInstructors(instructors.map(instructor => 
+
+      setInstructors(instructors.map(instructor =>
         instructor.id === data.id
           ? {
-              ...instructor,
-              role: data.role,
-              weeklyLoad: data.weeklyLoad,
-              coursesAssigned: data.coursesAssigned.length,
-              courses: data.coursesAssigned,
-              availableDays: data.availableDays,
-            }
+            ...instructor,
+            role: data.role,
+            weeklyLoad: data.weeklyLoad,
+            coursesAssigned: data.coursesAssigned.length,
+            courses: data.coursesAssigned,
+            availableDays: data.availableDays,
+          }
           : instructor
       ))
       setIsModalOpen(false)
@@ -434,26 +451,26 @@ export default function InstructorsPage({ params }: InstructorsPageProps) {
           )}
         </div>
 
-      {selectedInstructor && (
-        <InstructorEditModal
-          instructor={{
-            id: selectedInstructor.id,
-            name: selectedInstructor.name,
-            staffId: selectedInstructor.staffId || `TA${selectedInstructor.id.padStart(3, '0')}`,
-            role: selectedInstructor.role,
-            weeklyLoad: selectedInstructor.weeklyLoad,
-            coursesAssigned: selectedInstructor.courses || [],
-            availableDays: selectedInstructor.availableDays || [],
-            freeTimeSlots: selectedInstructor.freeTimeSlots || [],
-          }}
-          isOpen={isModalOpen}
-          onClose={() => {
-            setIsModalOpen(false)
-            setSelectedInstructor(null)
-          }}
-          onSave={handleSave}
-        />
-      )}
+        {selectedInstructor && (
+          <InstructorEditModal
+            instructor={{
+              id: selectedInstructor.id,
+              name: selectedInstructor.name,
+              staffId: selectedInstructor.staffId || `TA${selectedInstructor.id.padStart(3, '0')}`,
+              role: selectedInstructor.role,
+              weeklyLoad: selectedInstructor.weeklyLoad,
+              coursesAssigned: selectedInstructor.courses || [],
+              availableDays: selectedInstructor.availableDays || [],
+              freeTimeSlots: selectedInstructor.freeTimeSlots || [],
+            }}
+            isOpen={isModalOpen}
+            onClose={() => {
+              setIsModalOpen(false)
+              setSelectedInstructor(null)
+            }}
+            onSave={handleSave}
+          />
+        )}
       </MainLayout>
     </ProtectedRoute>
   )

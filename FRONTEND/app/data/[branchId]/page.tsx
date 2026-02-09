@@ -132,7 +132,7 @@ export default function BranchDetailPage() {
                   description="Bulk upload EXCEL/JSON files directly into the system database."
                   icon={<FileUp className="w-6 h-6" />}
                   iconColor="blue"
-                  href="/data/import"
+                  href={`/data/import?campusId=${branchId}`}
                 />
               </div>
             </>

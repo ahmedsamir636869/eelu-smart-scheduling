@@ -42,19 +42,22 @@ export default function CoursesPage({ params }: CoursesPageProps) {
     try {
       setLoading(true)
       setError('')
-      
+
       // Fetch campus info
       const campus = await campusApi.getById(branchId)
+      let campusColleges: any[] = []
+
       if (campus) {
-        const displayName = campus.city 
-          ? `${campus.name} - ${campus.city}` 
+        const displayName = campus.city
+          ? `${campus.name} - ${campus.city}`
           : campus.name
         setBranchName(displayName)
-        
+
         // Fetch colleges for this campus
         if (campus.colleges && campus.colleges.length > 0) {
+          campusColleges = campus.colleges
           setColleges(campus.colleges)
-          
+
           // Fetch departments for all colleges
           const allDepartments: any[] = []
           for (const college of campus.colleges) {
@@ -69,26 +72,54 @@ export default function CoursesPage({ params }: CoursesPageProps) {
         }
       }
 
-      // Fetch all instructors
+      // Fetch all instructors for this campus's departments
       try {
         const instructorsData = await instructorApi.getAll()
-        setInstructors(instructorsData)
+        // Filter instructors by campus departments
+        if (campusColleges.length > 0) {
+          const collegeIds = campusColleges.map(c => c.id)
+          // We need to fetch department data to filter properly
+          const allDepts: any[] = []
+          for (const college of campusColleges) {
+            try {
+              const depts = await departmentApi.getAll(college.id)
+              allDepts.push(...depts)
+            } catch (err) {
+              // Silently handle
+            }
+          }
+          const deptIds = allDepts.map(d => d.id)
+          const filteredInstructors = instructorsData.filter((i: any) =>
+            deptIds.includes(i.departmentId)
+          )
+          setInstructors(filteredInstructors)
+        } else {
+          setInstructors([])
+        }
       } catch (err) {
         console.warn('Failed to fetch instructors:', err)
       }
 
-      // Fetch all courses (filtered by campus colleges if needed)
+      // Fetch courses filtered by campus colleges
       const coursesData = await courseApi.getAll()
-      
-      // Filter courses by campus colleges if we have them
-      let filteredCourses = coursesData
-      if (colleges.length > 0) {
-        const collegeIds = colleges.map(c => c.id)
-        filteredCourses = coursesData.filter((course: any) => 
+      console.log('DEBUG: All courses fetched:', coursesData.length)
+      console.log('DEBUG: Sample course:', coursesData[0])
+
+      // Filter courses by campus colleges
+      let filteredCourses = []
+      if (campusColleges.length > 0) {
+        const collegeIds = campusColleges.map(c => c.id)
+        console.log('DEBUG: Campus college IDs:', collegeIds)
+        console.log('DEBUG: Sample course collegeId:', coursesData[0]?.collegeId)
+
+        filteredCourses = coursesData.filter((course: any) =>
           collegeIds.includes(course.collegeId)
         )
+        console.log('DEBUG: Filtered courses count:', filteredCourses.length)
+      } else {
+        console.log('DEBUG: No campus colleges found!')
       }
-      
+
       setCourses(filteredCourses)
     } catch (err) {
       const errorMessage =

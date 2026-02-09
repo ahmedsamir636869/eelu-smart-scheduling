@@ -45,14 +45,30 @@ class AIIntegrationService {
     }
     console.log('✅ AI service is healthy');
 
-    // 1. Fetch data from database
+    // 1. Fetch data from database (filtered by campus)
     console.log('📊 Fetching data from database...');
     const rooms = await this.fetchRooms(campusId);
-    const courses = await this.fetchCourses();
-    const instructors = await this.fetchInstructors();
-    const divisions = await this.fetchDivisions();
+    const courses = await this.fetchCourses(campusId);
+    const instructors = await this.fetchInstructors(campusId);
+    const divisions = await this.fetchDivisions(campusId);
 
     console.log(`Found: ${rooms.length} rooms, ${courses.length} courses, ${instructors.length} instructors, ${divisions.length} divisions`);
+
+    // Validate that we have sufficient data for this campus
+    const missingData = [];
+    if (rooms.length === 0) missingData.push('classrooms');
+    if (courses.length === 0) missingData.push('courses');
+    if (instructors.length === 0) missingData.push('instructors');
+    if (divisions.length === 0) missingData.push('student groups');
+
+    if (missingData.length > 0) {
+      const campus = await prisma.campus.findUnique({ where: { id: campusId } });
+      const campusName = campus?.name || campusId;
+      throw new Error(
+        `Cannot generate schedule for "${campusName}": Missing ${missingData.join(', ')}. ` +
+        `Please add the required data to this campus before generating a schedule.`
+      );
+    }
 
     // 2. Transform to AI format
     console.log('🔄 Transforming data for AI...');
@@ -107,10 +123,16 @@ class AIIntegrationService {
   }
 
   /**
-   * Fetch all courses with relations
+   * Fetch courses for a specific campus (via college relationship)
+   * @param {string} campusId - Campus ID to filter courses by
    */
-  async fetchCourses() {
+  async fetchCourses(campusId) {
     return prisma.course.findMany({
+      where: {
+        college: {
+          campusId: campusId
+        }
+      },
       include: {
         department: true,
         college: true,
@@ -120,10 +142,18 @@ class AIIntegrationService {
   }
 
   /**
-   * Fetch all instructors with relations
+   * Fetch instructors for a specific campus (via department -> college relationship)
+   * @param {string} campusId - Campus ID to filter instructors by
    */
-  async fetchInstructors() {
+  async fetchInstructors(campusId) {
     return prisma.instructor.findMany({
+      where: {
+        department: {
+          college: {
+            campusId: campusId
+          }
+        }
+      },
       include: {
         department: true
       }
@@ -131,10 +161,18 @@ class AIIntegrationService {
   }
 
   /**
-   * Fetch all student groups with relations
+   * Fetch student groups for a specific campus (via department -> college relationship)
+   * @param {string} campusId - Campus ID to filter student groups by
    */
-  async fetchDivisions() {
+  async fetchDivisions(campusId) {
     return prisma.studentGroup.findMany({
+      where: {
+        department: {
+          college: {
+            campusId: campusId
+          }
+        }
+      },
       include: {
         department: true
       }

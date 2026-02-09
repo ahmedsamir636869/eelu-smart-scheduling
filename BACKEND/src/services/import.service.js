@@ -4,59 +4,75 @@ const { prisma } = require('../config/db');
 /**
  * Find or create a college
  * Ensures colleges are properly linked to campuses when campusId is provided
+ * IMPORTANT: Never falls back to orphaned colleges (those without campusId)
  */
 const findOrCreateCollege = async (collegeName, campusId) => {
   if (!collegeName) return null;
   
   const trimmedName = collegeName.trim();
   
-  // Try to find existing college (prefer exact match, then contains)
+  // If campusId is provided, ONLY look for colleges in that campus
+  // Never fall back to orphaned colleges as this causes data to be linked incorrectly
+  if (campusId) {
+    // Try to find existing college in this campus (exact match first)
+    let college = await prisma.college.findFirst({
+      where: {
+        name: { equals: trimmedName, mode: 'insensitive' },
+        campusId: campusId
+      }
+    });
+    
+    // If not found with exact match, try contains
+    if (!college) {
+      college = await prisma.college.findFirst({
+        where: {
+          name: { contains: trimmedName, mode: 'insensitive' },
+          campusId: campusId
+        }
+      });
+    }
+    
+    // If not found in campus, create it in the campus
+    if (!college) {
+      college = await prisma.college.create({
+        data: {
+          name: trimmedName,
+          campusId: campusId
+        }
+      });
+      console.log(`✓ Created new college: "${trimmedName}" (campus: ${campusId})`);
+    } else {
+      console.log(`✓ Found existing college: "${trimmedName}" in campus ${campusId}`);
+    }
+    
+    return college;
+  }
+  
+  // No campusId provided - try to find any college with this name
   let college = await prisma.college.findFirst({
     where: {
-      name: { equals: trimmedName, mode: 'insensitive' },
-      ...(campusId && { campusId: campusId })
+      name: { equals: trimmedName, mode: 'insensitive' }
     }
   });
   
-  // If not found with exact match, try contains
   if (!college) {
     college = await prisma.college.findFirst({
       where: {
-        name: { contains: trimmedName, mode: 'insensitive' },
-        ...(campusId && { campusId: campusId })
+        name: { contains: trimmedName, mode: 'insensitive' }
       }
     });
   }
   
-  // If still not found, try without campus constraint
-  if (!college && campusId) {
-    college = await prisma.college.findFirst({
-      where: {
-        name: { equals: trimmedName, mode: 'insensitive' }
-      }
-    });
-  }
-  
-  // If not found, create it
+  // If not found, create it (without campus)
   if (!college) {
     college = await prisma.college.create({
       data: {
-        name: trimmedName,
-        ...(campusId && { campusId: campusId })
+        name: trimmedName
       }
     });
-    console.log(`✓ Created new college: "${trimmedName}"${campusId ? ` (campus: ${campusId})` : ''}`);
+    console.log(`✓ Created new college: "${trimmedName}" (no campus specified)`);
   } else {
-    // If college exists but campusId doesn't match, update it
-    if (campusId && college.campusId !== campusId) {
-      college = await prisma.college.update({
-        where: { id: college.id },
-        data: { campusId: campusId }
-      });
-      console.log(`✓ Updated college "${trimmedName}" to link to campus: ${campusId}`);
-    } else {
-      console.log(`✓ Found existing college: "${trimmedName}"`);
-    }
+    console.log(`✓ Found existing college: "${trimmedName}"`);
   }
   
   return college;
@@ -66,6 +82,7 @@ const findOrCreateCollege = async (collegeName, campusId) => {
  * Find or create a department
  * Automatically creates college if needed
  * Ensures departments are always created within a college
+ * IMPORTANT: When campusId is provided, only look in that campus's colleges
  */
 const findOrCreateDepartment = async (departmentName, collegeName, campusId, major = null) => {
   if (!departmentName && !major) return null;
@@ -73,6 +90,95 @@ const findOrCreateDepartment = async (departmentName, collegeName, campusId, maj
   const deptName = departmentName || major;
   const deptCode = (departmentName || major || '').trim().toUpperCase();
   
+  // If campusId is provided, ONLY look for departments in that campus's colleges
+  if (campusId) {
+    // First get all colleges in this campus
+    const campusColleges = await prisma.college.findMany({
+      where: { campusId: campusId }
+    });
+    const campusCollegeIds = campusColleges.map(c => c.id);
+    
+    // Try to find existing department in campus colleges
+    let department = null;
+    if (campusCollegeIds.length > 0) {
+      department = await prisma.department.findFirst({
+        where: {
+          collegeId: { in: campusCollegeIds },
+          OR: [
+            { name: { contains: deptName, mode: 'insensitive' } },
+            { code: { contains: deptCode, mode: 'insensitive' } }
+          ]
+        },
+        include: { college: true }
+      });
+      
+      // If not found, try using Major
+      if (!department && major && major !== departmentName) {
+        department = await prisma.department.findFirst({
+          where: {
+            collegeId: { in: campusCollegeIds },
+            OR: [
+              { name: { contains: major, mode: 'insensitive' } },
+              { code: { contains: major.toUpperCase(), mode: 'insensitive' } }
+            ]
+          },
+          include: { college: true }
+        });
+      }
+    }
+    
+    // If still not found, create department in the campus
+    if (!department) {
+      // Find or create college in this campus
+      let college = null;
+      
+      if (collegeName) {
+        // Use provided college name - this will create or find in the campus
+        college = await findOrCreateCollege(collegeName, campusId);
+      } else {
+        // Try to find the first college in this campus
+        if (campusColleges.length > 0) {
+          college = campusColleges[0];
+          console.log(`✓ Using existing college: "${college.name}" in campus ${campusId}`);
+        } else {
+          // Create a default college for this campus
+          const newCollegeName = deptName 
+            ? `${deptName} College` 
+            : 'Main College';
+          
+          college = await prisma.college.create({
+            data: {
+              name: newCollegeName,
+              campusId: campusId
+            }
+          });
+          console.log(`✓ Created new college: "${newCollegeName}" for campus ${campusId}`);
+        }
+      }
+      
+      if (!college || !college.id) {
+        throw new Error(`Cannot create department ${deptName}: Failed to create or find a college for campus ${campusId}`);
+      }
+      
+      // Create department in the college
+      department = await prisma.department.create({
+        data: {
+          name: deptName.trim(),
+          code: deptCode,
+          collegeId: college.id
+        },
+        include: { college: true }
+      });
+      
+      console.log(`✓ Created new department: "${deptName}" (code: ${deptCode}) inside college: "${college.name}" in campus ${campusId}`);
+    } else {
+      console.log(`✓ Found existing department: "${deptName}" in college: "${department.college.name}" (campus ${campusId})`);
+    }
+    
+    return department;
+  }
+  
+  // No campusId provided - use original logic (less strict)
   // Try to find existing department
   let department = await prisma.department.findFirst({
     where: {
@@ -97,77 +203,42 @@ const findOrCreateDepartment = async (departmentName, collegeName, campusId, maj
     });
   }
   
-  // If still not found, create department (and college if needed)
+  // If still not found, create department
   if (!department) {
-    // Find or create college - ALWAYS ensure we have a college
+    // Find or create college
     let college = null;
     
     if (collegeName) {
-      // Use provided college name
-      college = await findOrCreateCollege(collegeName, campusId);
+      college = await findOrCreateCollege(collegeName, null);
     } else {
-      // Try to find a college that matches the department or campus
-      // First, try to find colleges in the same campus
-      if (campusId) {
-        const campusColleges = await prisma.college.findMany({
-          where: { campusId: campusId },
-          take: 1
-        });
-        if (campusColleges.length > 0) {
-          college = campusColleges[0];
-        }
-      }
-      
-      // If still no college, try to find any college
-      if (!college) {
-        const existingColleges = await prisma.college.findMany({ take: 1 });
-        if (existingColleges.length > 0) {
-          college = existingColleges[0];
-        }
-      }
-      
-      // If still no college, create one with a meaningful name
-      if (!college) {
-        // Create a college based on department or use a generic name
-        const newCollegeName = deptName 
-          ? `${deptName} College` 
-          : (campusId ? 'Main College' : 'Default College');
-        
+      // Try to find any college
+      const existingColleges = await prisma.college.findMany({ take: 1 });
+      if (existingColleges.length > 0) {
+        college = existingColleges[0];
+      } else {
+        // Create a default college
         college = await prisma.college.create({
-          data: {
-            name: newCollegeName,
-            ...(campusId && { campusId: campusId })
-          }
+          data: { name: 'Default College' }
         });
-        console.log(`Created new college: ${newCollegeName} for department: ${deptName}`);
+        console.log(`Created new college: Default College for department: ${deptName}`);
       }
     }
     
-    // Ensure we have a college before creating department
-    if (!college) {
+    if (!college || !college.id) {
       throw new Error(`Cannot create department ${deptName}: Failed to create or find a college`);
     }
     
-    // Verify college exists and has an ID
-    if (!college.id) {
-      throw new Error(`Cannot create department ${deptName}: Invalid college data`);
-    }
-    
-    // Create department WITHIN the college
     department = await prisma.department.create({
       data: {
         name: deptName.trim(),
         code: deptCode,
-        collegeId: college.id  // Always link to college
+        collegeId: college.id
       },
-      include: { 
-        college: true  // Include college relation
-      }
+      include: { college: true }
     });
     
     console.log(`✓ Created new department: "${deptName}" (code: ${deptCode}) inside college: "${college.name}"`);
   } else {
-    // Department exists, verify it has a college
     if (!department.college) {
       console.warn(`Warning: Department "${deptName}" exists but has no college. This should not happen.`);
     } else {
@@ -175,7 +246,7 @@ const findOrCreateDepartment = async (departmentName, collegeName, campusId, maj
     }
   }
   
-  // Final verification: ensure department has college relation
+  // Final verification
   if (!department.college) {
     department = await prisma.department.findUnique({
       where: { id: department.id },
