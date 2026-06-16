@@ -1,10 +1,9 @@
-"""
-Pydantic models for the GA Scheduler API.
-"""
+"""Pydantic models for the CP Scheduler API."""
+
+from enum import Enum
+from typing import Any, List, Optional
 
 from pydantic import BaseModel, Field, field_validator
-from typing import Optional, List, Dict, Any
-from enum import Enum
 
 
 class RoomType(str, Enum):
@@ -12,77 +11,15 @@ class RoomType(str, Enum):
     LECTURE = "Lecture"
 
 
-class Room(BaseModel):
-    """Room model for scheduling."""
-    room_id: str = Field(..., alias="Room_ID")
-    name: str = Field(..., alias="Room")
-    capacity: int = Field(..., alias="Capacity")
-    type: RoomType = Field(..., alias="Type")
-
-    class Config:
-        populate_by_name = True
-
-
-class Course(BaseModel):
-    """Course model for scheduling."""
-    course_id: str = Field(..., alias="Course_ID")
-    course_name: str = Field(..., alias="Course_Name")
-    department: str = Field(..., alias="Department")
-    major: str = Field(..., alias="Major")
-    days: int = Field(..., alias="Days")
-    hours_per_day: int = Field(..., alias="Hours_per_day")
-    instructor_id: str = Field(..., alias="Instructor_ID")
-    year: int = Field(..., alias="Year")
-    type: RoomType = Field(..., alias="Type")
-    duration: Optional[str] = Field(None, alias="Duration")
-
-    @field_validator('days')
-    @classmethod
-    def validate_days(cls, v):
-        """Validate that days is between 1 and 6."""
-        if v < 1 or v > 6:
-            raise ValueError(f'Days must be between 1 and 6, got {v}')
-        return v
-
-    class Config:
-        populate_by_name = True
-
-
-class Doctor(BaseModel):
-    """Doctor/Instructor model."""
-    instructor_id: str = Field(..., alias="Instructor_ID")
-    instructor_name: str = Field(..., alias="Instructor_Name")
-    department: str = Field(..., alias="Department")
-    day: str = Field(..., alias="Day")
-    start_time: str = Field(..., alias="Start_Time")
-    end_time: str = Field(..., alias="End_Time")
-
-    class Config:
-        populate_by_name = True
-
-
-class Division(BaseModel):
-    """Division/Student group model."""
-    num_id: str = Field(..., alias="Num_ID")
-    department: str = Field(..., alias="Department")
-    major: str = Field(..., alias="Major")
-    year: int = Field(..., alias="Year")
-    student_num: int = Field(..., alias="StudentNum")
-
-    class Config:
-        populate_by_name = True
-
-
-class GAConfig(BaseModel):
-    """Configuration for the Genetic Algorithm."""
-    population_size: int = Field(default=50, ge=10, le=500)
-    generations: int = Field(default=100, ge=10, le=1000)
-    mutation_rate: float = Field(default=0.15, ge=0.0, le=1.0)
-    crossover_rate: float = Field(default=0.8, ge=0.0, le=1.0)
+class CPConfig(BaseModel):
+    """Configuration for the CP-SAT scheduler."""
+    time_limit_seconds: int = Field(default=300, ge=10, le=3600)
+    max_days_per_year: int = Field(default=3, ge=1, le=7)
+    relax_if_infeasible: bool = Field(default=True)
 
 
 class ScheduleEntry(BaseModel):
-    """A single entry in the generated schedule."""
+    """A single entry in the generated CP schedule."""
     day: str
     course_name: str
     instructor_name: str
@@ -92,19 +29,17 @@ class ScheduleEntry(BaseModel):
     end_time: str
     department: str
     major: str
-    year: int
+    year: int = 0
 
 
 class RoomInput(BaseModel):
-    """Room input from JSON."""
     Room_ID: str
     Room: str
     Capacity: int
-    Type: str  # "Lab" or "Lecture"
+    Type: str
 
 
 class CourseInput(BaseModel):
-    """Course input from JSON."""
     Course_ID: str
     Course_Name: str
     Department: str
@@ -113,19 +48,17 @@ class CourseInput(BaseModel):
     Hours_per_day: int
     Instructor_ID: str
     Year: int
-    Type: str  # "Lab" or "Lecture"
+    Type: str
 
-    @field_validator('Days')
+    @field_validator("Days")
     @classmethod
-    def validate_days(cls, v):
-        """Validate that Days is between 1 and 6."""
-        if v < 1 or v > 6:
-            raise ValueError(f'Days must be between 1 and 6, got {v}')
-        return v
+    def validate_days(cls, value: int) -> int:
+        if value < 1 or value > 6:
+            raise ValueError(f"Days must be between 1 and 6, got {value}")
+        return value
 
 
 class DoctorInput(BaseModel):
-    """Doctor/Instructor availability input from JSON."""
     Instructor_ID: str
     Instructor_Name: str
     Department: str
@@ -135,7 +68,6 @@ class DoctorInput(BaseModel):
 
 
 class DivisionInput(BaseModel):
-    """Division/Student group input from JSON."""
     Num_ID: str
     Department: str
     Major: str
@@ -144,7 +76,6 @@ class DivisionInput(BaseModel):
 
 
 class SchedulingDataInput(BaseModel):
-    """Complete scheduling data input from JSON."""
     rooms: List[RoomInput]
     courses: List[CourseInput]
     doctors: List[DoctorInput]
@@ -152,23 +83,137 @@ class SchedulingDataInput(BaseModel):
 
 
 class ScheduleRequest(BaseModel):
-    """Request model for schedule generation."""
-    config: Optional[GAConfig] = None
+    config: Optional[CPConfig] = None
     data: SchedulingDataInput = Field(..., description="Scheduling data as JSON")
+    write_output: bool = Field(default=False)
+    output_path: Optional[str] = None
+
+
+class CPFileScheduleRequest(BaseModel):
+    data_path: Optional[str] = Field(default=None, description="Path to Data.xlsx")
+    output_path: Optional[str] = Field(
+        default=None,
+        description="Path for Schedule_Output_CP.xlsx",
+    )
+    write_output: bool = Field(default=True)
+    config: Optional[CPConfig] = None
 
 
 class ScheduleResponse(BaseModel):
-    """Response model for generated schedule."""
     success: bool
     message: str
     schedule: List[ScheduleEntry] = []
     total_assignments: int = 0
-    fitness_score: float = 0.0
-    generations_run: int = 0
+    solver_status: Optional[str] = None
+    max_days_per_year_used: Optional[int] = None
+    output_path: Optional[str] = None
+    elapsed_seconds: float = 0.0
 
 
 class HealthResponse(BaseModel):
-    """Health check response."""
     status: str
     message: str
-    version: str = "1.0.0"
+    version: str = "2.0.0"
+
+
+# --- Section scheduling models (Final S Cp) ---
+
+
+class CPScheduleEntryInput(BaseModel):
+    Day: str
+    Course_Name: str
+    Start_Time: str
+    End_Time: str
+    Instructor_Name: str = ""
+    Assistant_Name: str = ""
+    Students: Any = ""
+    Room: str = ""
+    Major: str = ""
+
+
+class SectionRoomInput(BaseModel):
+    Room: str
+    Type: Optional[str] = None
+    Room_ID: Optional[str] = None
+    Capacity: Optional[int] = None
+
+
+class SectionInput(BaseModel):
+    Course_Name: Optional[str] = None
+    Division: Optional[str] = None
+    Section: Optional[str] = None
+    Instructor_Name: Optional[str] = None
+    Num_ID: Optional[str] = None
+    Major: Optional[str] = None
+
+
+class AssistantInput(BaseModel):
+    Assistant_Name: str
+    Assistant_ID: Optional[str] = None
+
+
+class SectionDataInput(BaseModel):
+    cp_schedule: List[CPScheduleEntryInput]
+    rooms: List[SectionRoomInput]
+    sections: List[SectionInput]
+    assistants: List[AssistantInput]
+    divisions: List[DivisionInput]
+    courses: List[CourseInput]
+    doctors: List[DoctorInput]
+
+
+class SectionScheduleRequest(BaseModel):
+    data: SectionDataInput = Field(..., description="CP schedule and section data as JSON")
+    write_output: bool = Field(default=False)
+    output_path: Optional[str] = None
+
+
+class SectionFileScheduleRequest(BaseModel):
+    cp_output_path: Optional[str] = None
+    sdata_path: Optional[str] = None
+    data_path: Optional[str] = None
+    output_path: Optional[str] = None
+    write_output: bool = Field(default=True)
+
+
+class FullScheduleFileRequest(BaseModel):
+    """Run CP then section scheduling from Excel files."""
+    data_path: Optional[str] = None
+    sdata_path: Optional[str] = None
+    cp_output_path: Optional[str] = None
+    output_path: Optional[str] = None
+    write_output: bool = Field(default=True)
+    cp_config: Optional[CPConfig] = None
+
+
+class SectionScheduleEntry(BaseModel):
+    day: str
+    course_name: str
+    instructor_name: str
+    assistant_name: str = ""
+    students: Any = ""
+    room: str = ""
+    start_time: str = ""
+    end_time: str = ""
+    major: str = ""
+
+
+class SectionScheduleResponse(BaseModel):
+    success: bool
+    message: str
+    schedule: List[SectionScheduleEntry] = []
+    cp_schedule: List[SectionScheduleEntry] = []
+    sections_schedule: List[SectionScheduleEntry] = []
+    cp_rows: int = 0
+    section_rows: int = 0
+    total_rows: int = 0
+    unassigned_sections: int = 0
+    output_path: Optional[str] = None
+    elapsed_seconds: float = 0.0
+
+
+class FullScheduleResponse(BaseModel):
+    success: bool
+    message: str
+    cp_result: ScheduleResponse
+    section_result: SectionScheduleResponse

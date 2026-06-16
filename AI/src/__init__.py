@@ -1,1 +1,1 @@
-# GA Scheduler API
+# CP Scheduler API (lecture CP + section scheduling)

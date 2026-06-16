@@ -1,152 +1,154 @@
-"""
-Data loader service for JSON data.
-"""
+"""Data loader for CP scheduling (JSON or Excel)."""
 
-from typing import Dict, List, Tuple, Any
+from pathlib import Path
+from typing import Any, Dict, List, Tuple
+
 import pandas as pd
+
 from .utils import time_to_minutes
 
 
+DEFAULT_DATA_PATH = Path("data/Raw Data/Data.xlsx")
+DEFAULT_CP_OUTPUT_PATH = Path("data/Processed Data/Schedule_Output_CP.xlsx")
+
+
 class DataLoader:
-    """Load and prepare scheduling data from JSON."""
-    
-    def __init__(self):
-        """Initialize the data loader."""
-        # Raw data storage
-        self.rooms_data: List[Dict] = []
-        self.courses_data: List[Dict] = []
-        self.doctors_data: List[Dict] = []
-        self.divisions_data: List[Dict] = []
-        
-        # Prepared data structures
-        self.room_dict: Dict[str, Dict] = {}
-        self.course_dict: Dict[str, Dict] = {}
+    """Load and prepare scheduling data from JSON or Excel."""
+
+    def __init__(self) -> None:
+        self.rooms_data: List[Dict[str, Any]] = []
+        self.courses_data: List[Dict[str, Any]] = []
+        self.doctors_data: List[Dict[str, Any]] = []
+        self.divisions_data: List[Dict[str, Any]] = []
+
+        self.room_dict: Dict[str, Dict[str, Any]] = {}
+        self.course_dict: Dict[str, Dict[str, Any]] = {}
         self.doctor_availability: Dict[str, Dict[str, List[Tuple[int, int]]]] = {}
-        self.division_dict: Dict[str, Dict] = {}
+        self.division_dict: Dict[str, Dict[str, Any]] = {}
         self.lecture_rooms: List[str] = []
         self.lab_rooms: List[str] = []
-        
-        # DataFrames for compatibility with scheduler
-        self.rooms_df: pd.DataFrame = pd.DataFrame()
-        self.courses_df: pd.DataFrame = pd.DataFrame()
-        self.doctors_df: pd.DataFrame = pd.DataFrame()
-        self.divisions_df: pd.DataFrame = pd.DataFrame()
-        
+
+        self.rooms_df = pd.DataFrame()
+        self.courses_df = pd.DataFrame()
+        self.doctors_df = pd.DataFrame()
+        self.divisions_df = pd.DataFrame()
+
         self._is_loaded = False
-    
-    def load_from_json(self, data: Dict[str, List[Dict]]) -> bool:
-        """Load all data from JSON input.
-        
-        Args:
-            data: Dictionary containing 'rooms', 'courses', 'doctors', 'divisions' lists.
-        
-        Returns:
-            True if successful, False otherwise.
-        """
+
+    def load_from_json(self, data: Dict[str, List[Dict[str, Any]]]) -> bool:
+        """Load all data from JSON input."""
         try:
-            self.rooms_data = data.get('rooms', [])
-            self.courses_data = data.get('courses', [])
-            self.doctors_data = data.get('doctors', [])
-            self.divisions_data = data.get('divisions', [])
-            
+            self.rooms_data = data.get("rooms", [])
+            self.courses_data = data.get("courses", [])
+            self.doctors_data = data.get("doctors", [])
+            self.divisions_data = data.get("divisions", [])
             self._prepare_data()
             self._is_loaded = True
             return True
-        except Exception as e:
-            print(f"Error loading data from JSON: {e}")
+        except Exception as exc:
+            print(f"Error loading data from JSON: {exc}")
             return False
-    
-    def _prepare_data(self):
-        """Prepare data structures for the GA."""
-        # Room dictionary
+
+    def load_from_excel(self, data_path: Path = DEFAULT_DATA_PATH) -> bool:
+        """Load scheduling data from Data.xlsx (Final CP notebook)."""
+        try:
+            self.rooms_df = pd.read_excel(data_path, sheet_name="Rooms")
+            self.courses_df = pd.read_excel(data_path, sheet_name="Courses")
+            self.doctors_df = pd.read_excel(data_path, sheet_name="Doctors")
+            self.divisions_df = pd.read_excel(data_path, sheet_name="Division")
+
+            self.rooms_data = self.rooms_df.to_dict("records")
+            self.courses_data = self.courses_df.to_dict("records")
+            self.doctors_data = self.doctors_df.to_dict("records")
+            self.divisions_data = self.divisions_df.to_dict("records")
+
+            self._prepare_data()
+            self._is_loaded = True
+            return True
+        except Exception as exc:
+            print(f"Error loading data from Excel: {exc}")
+            return False
+
+    def _prepare_data(self) -> None:
+        """Prepare data structures for the CP scheduler."""
         self.room_dict = {
-            room['Room_ID']: {
-                'capacity': room['Capacity'], 
-                'type': room['Type'],
-                'name': room['Room']
-            } 
+            room["Room_ID"]: {
+                "capacity": room["Capacity"],
+                "type": room["Type"],
+                "name": room["Room"],
+            }
             for room in self.rooms_data
         }
-        
-        # Course dictionary
+
         self.course_dict = {
-            course['Course_ID']: {
-                'instructor': course['Instructor_ID'],
-                'days': course['Days'],
-                'hours_per_day': course['Hours_per_day'],
-                'type': course['Type'],
-                'year': course['Year'],
-                'major': course['Major'],
-                'department': course['Department'],
-                'name': course['Course_Name']
-            } 
+            course["Course_ID"]: {
+                "instructor": course["Instructor_ID"],
+                "days": course["Days"],
+                "hours_per_day": course["Hours_per_day"],
+                "type": course["Type"],
+                "year": course["Year"],
+                "major": course["Major"],
+                "department": course["Department"],
+                "name": course["Course_Name"],
+            }
             for course in self.courses_data
         }
-        
-        # Doctor availability
+
         self.doctor_availability = {}
         for doctor in self.doctors_data:
-            inst_id = doctor['Instructor_ID']
-            day = doctor['Day']
-            start = doctor['Start_Time']
-            end = doctor['End_Time']
-            start_minutes = time_to_minutes(start)
-            end_minutes = time_to_minutes(end)
-            
+            inst_id = doctor["Instructor_ID"]
+            day = doctor["Day"]
+            start_minutes = time_to_minutes(doctor["Start_Time"])
+            end_minutes = time_to_minutes(doctor["End_Time"])
+
             if inst_id not in self.doctor_availability:
                 self.doctor_availability[inst_id] = {}
             if day not in self.doctor_availability[inst_id]:
                 self.doctor_availability[inst_id][day] = []
             self.doctor_availability[inst_id][day].append((start_minutes, end_minutes))
-        
-        # Division dictionary
+
         self.division_dict = {
-            div['Num_ID']: {
-                'students': div['StudentNum'],
-                'year': div['Year'],
-                'major': div['Major'],
-                'department': div['Department']
-            } 
+            div["Num_ID"]: {
+                "students": div["StudentNum"],
+                "year": div["Year"],
+                "major": div["Major"],
+                "department": div["Department"],
+            }
             for div in self.divisions_data
         }
-        
-        # Separate rooms by type
-        self.lecture_rooms = [r for r in self.room_dict.keys() if self.room_dict[r]['type'] == 'Lecture']
-        self.lab_rooms = [r for r in self.room_dict.keys() if self.room_dict[r]['type'] == 'Lab']
-        
-        # Create DataFrames for compatibility with scheduler
+
+        self.lecture_rooms = [
+            room_id
+            for room_id, info in self.room_dict.items()
+            if info["type"] == "Lecture"
+        ]
+        self.lab_rooms = [
+            room_id for room_id, info in self.room_dict.items() if info["type"] == "Lab"
+        ]
+
         if self.rooms_data:
             self.rooms_df = pd.DataFrame(self.rooms_data)
-        else:
-            self.rooms_df = pd.DataFrame(columns=['Room_ID', 'Room', 'Capacity', 'Type'])
-        
         if self.courses_data:
             self.courses_df = pd.DataFrame(self.courses_data)
-        else:
-            self.courses_df = pd.DataFrame(columns=['Course_ID', 'Course_Name', 'Department', 'Major', 'Days', 'Hours_per_day', 'Instructor_ID', 'Year', 'Type'])
-        
         if self.doctors_data:
             self.doctors_df = pd.DataFrame(self.doctors_data)
-        else:
-            self.doctors_df = pd.DataFrame(columns=['Instructor_ID', 'Instructor_Name', 'Department', 'Day', 'Start_Time', 'End_Time'])
-        
         if self.divisions_data:
             self.divisions_df = pd.DataFrame(self.divisions_data)
-        else:
-            self.divisions_df = pd.DataFrame(columns=['Num_ID', 'Department', 'Major', 'Year', 'StudentNum'])
-    
+
     def is_loaded(self) -> bool:
-        """Check if data has been loaded."""
         return self._is_loaded
-    
+
     def get_stats(self) -> Dict[str, int]:
-        """Get statistics about loaded data."""
-        unique_doctors = set(d['Instructor_ID'] for d in self.doctors_data) if self.doctors_data else set()
+        unique_doctors = (
+            {doctor["Instructor_ID"] for doctor in self.doctors_data}
+            if self.doctors_data
+            else set()
+        )
         return {
-            'courses': len(self.course_dict),
-            'rooms': len(self.room_dict),
-            'doctors': len(unique_doctors),
-            'divisions': len(self.division_dict),
-            'lecture_rooms': len(self.lecture_rooms),
-            'lab_rooms': len(self.lab_rooms)
+            "courses": len(self.course_dict),
+            "rooms": len(self.room_dict),
+            "doctors": len(unique_doctors),
+            "divisions": len(self.division_dict),
+            "lecture_rooms": len(self.lecture_rooms),
+            "lab_rooms": len(self.lab_rooms),
         }
