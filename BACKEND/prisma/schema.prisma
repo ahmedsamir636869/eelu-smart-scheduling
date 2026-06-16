@@ -24,6 +24,8 @@ model User {
   emailVerificationOtp        String?
   emailVerificationOtpExpires DateTime?
   sessions                    Session[]
+  instructor                  Instructor?
+  ta                          TA?
 }
 
 model Campus {
@@ -51,6 +53,7 @@ model Department {
   courses       Course[]
   college       College        @relation(fields: [collegeId], references: [id])
   instructors   Instructor[]
+  tas           TA[]
   studentGroups StudentGroup[]
 }
 
@@ -64,24 +67,73 @@ model Course {
   days         Int
   hoursPerDay  Int
   instructorId String?
+  taId         String?
   year         Int
   college      College      @relation(fields: [collegeId], references: [id])
   department   Department   @relation(fields: [departmentId], references: [id])
   instructor   Instructor?  @relation("AssignedInstructor", fields: [instructorId], references: [id])
+  ta           TA?          @relation("AssignedTA", fields: [taId], references: [id])
   sessions     Session[]
   instructors  Instructor[] @relation("AdditionalInstructors")
 }
 
 model Instructor {
-  id              String     @id @default(cuid())
+  id              String          @id @default(cuid())
   name            String
+  email           String          @unique
+  userId          String?         @unique
   departmentId    String
-  day             DayOfWeek?
-  startTime       DateTime?
-  endTime         DateTime?
-  assignedCourses Course[]   @relation("AssignedInstructor")
-  department      Department @relation(fields: [departmentId], references: [id])
-  otherCourses    Course[]   @relation("AdditionalInstructors")
+  employmentType  EmploymentType  @default(FULL_TIME)
+  assignedCourses Course[]        @relation("AssignedInstructor")
+  department      Department      @relation(fields: [departmentId], references: [id])
+  otherCourses    Course[]        @relation("AdditionalInstructors")
+  user            User?           @relation(fields: [userId], references: [id])
+  availability    InstructorAvailability[]
+}
+
+model InstructorAvailability {
+  id              String             @id @default(cuid())
+  instructorId    String
+  day             DayOfWeek
+  startTime       DateTime
+  endTime         DateTime
+  status          AvailabilityStatus @default(PENDING)
+  instructor      Instructor         @relation(fields: [instructorId], references: [id])
+
+  @@unique([instructorId, day])
+}
+
+model TA {
+  id           String       @id @default(cuid())
+  name         String
+  email        String       @unique
+  userId       String?      @unique
+  departmentId String
+  isExpatriate Boolean      @default(false)
+  department   Department   @relation(fields: [departmentId], references: [id])
+  user         User?        @relation(fields: [userId], references: [id])
+  courses      Course[]     @relation("AssignedTA")
+  reports      TAReport[]
+  offDays      TAOffDay[]
+}
+
+model TAOffDay {
+  id    String    @id @default(cuid())
+  taId  String
+  day   DayOfWeek
+  ta    TA        @relation(fields: [taId], references: [id])
+
+  @@unique([taId, day])
+}
+
+model TAReport {
+  id        String         @id @default(cuid())
+  taId      String
+  title     String
+  content   String
+  status    ReportStatus   @default(UNREAD)
+  createdAt DateTime       @default(now())
+  ta        TA             @relation(fields: [taId], references: [id])
 }
 
 model StudentGroup {
@@ -160,3 +212,20 @@ enum UserRole {
   ADMIN
   TA
 }
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+}
+
+enum AvailabilityStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ReportStatus {
+  UNREAD
+  READ
+}
+
