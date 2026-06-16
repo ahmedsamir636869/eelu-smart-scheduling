@@ -15,11 +15,17 @@ const roleOptions = [
   { value: 'TA', label: 'Teaching Assistant' },
 ]
 
+const expatriateOptions = [
+  { value: 'true', label: 'Yes' },
+  { value: 'false', label: 'No' },
+]
+
 export default function RegisterPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [name, setName] = useState('')
   const [role, setRole] = useState('INSTRUCTOR')
+  const [isExpatriate, setIsExpatriate] = useState<string>('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const { register } = useAuth()
@@ -27,10 +33,19 @@ export default function RegisterPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+
+    // Validate isExpatriate is selected for TA role
+    if (role === 'TA' && isExpatriate === '') {
+      setError('Please select your expatriate status.')
+      return
+    }
+
     setLoading(true)
 
     try {
-      await register(email, password, name, role)
+      // Convert string to boolean, only send isExpatriate if role is TA
+      const expatriateValue = role === 'TA' ? isExpatriate === 'true' : false
+      await register(email, password, name, role, expatriateValue)
       // Registration successful - user will be redirected to OTP page
       // No need to set loading to false as we're navigating away
     } catch (err: any) {
@@ -44,7 +59,7 @@ export default function RegisterPage() {
       <div className="max-w-md mx-auto mt-8">
         <Card>
           <h1 className="text-2xl font-bold text-white mb-6">Create Account</h1>
-          
+
           {error && (
             <div className="mb-4 p-3 bg-red-900/50 border border-red-700 rounded-lg text-red-200 text-sm">
               {error}
@@ -105,10 +120,32 @@ export default function RegisterPage() {
               <Select
                 options={roleOptions}
                 value={role}
-                onChange={(e) => setRole(e.target.value)}
+                onChange={(e) => {
+                  setRole(e.target.value)
+                  // Reset isExpatriate when role changes
+                  if (e.target.value !== 'TA') {
+                    setIsExpatriate('')
+                  }
+                }}
                 disabled={loading}
               />
             </div>
+
+            {/* Show isExpatriate select only for Teaching Assistants */}
+            {role === 'TA' && (
+              <div>
+                <label htmlFor="isExpatriate" className="block text-sm font-medium text-gray-300 mb-2">
+                  Expatriate Status <span className="text-red-400">*</span>
+                </label>
+                <Select
+                  options={expatriateOptions}
+                  value={isExpatriate}
+                  onChange={(e) => setIsExpatriate(e.target.value)}
+                  disabled={loading}
+                  placeholder="Select your status"
+                />
+              </div>
+            )}
 
             <Button
               type="submit"

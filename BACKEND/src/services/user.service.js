@@ -94,4 +94,59 @@ const deleteUser = async (userId) => {
     return deletedUser;
 }
 
-module.exports = {createUser, getAllUsers, getUserById, updateUser, deleteUser};
+// Update user's own profile (limited fields)
+const updateProfile = async (userId, data) => {
+    const dataToUpdate = {};
+    
+    if (data.name) {
+        dataToUpdate.name = data.name;
+    }
+    
+    if (data.email) {
+        // Check if email is already taken by another user
+        const existingUser = await prisma.user.findFirst({
+            where: {
+                email: data.email,
+                NOT: { id: userId }
+            }
+        });
+        
+        if (existingUser) {
+            throw new Error('Email is already in use by another user');
+        }
+        
+        dataToUpdate.email = data.email;
+        // Reset email verification if email changed
+        dataToUpdate.emailVerified = false;
+    }
+    
+    if (data.password) {
+        if (data.password.length < 6) {
+            throw new Error('Password must be at least 6 characters');
+        }
+        dataToUpdate.password = await hashPassword(data.password);
+    }
+    
+    if (data.isExpatriate !== undefined) {
+        dataToUpdate.isExpatriate = data.isExpatriate;
+    }
+
+    const updatedUser = await prisma.user.update({
+        where: { id: userId },
+        data: dataToUpdate,
+        select: {
+            id: true,
+            name: true,
+            email: true,
+            roles: true,
+            isExpatriate: true,
+            emailVerified: true,
+            createdAt: true,
+            updatedAt: true
+        }
+    });
+    
+    return updatedUser;
+}
+
+module.exports = {createUser, getAllUsers, getUserById, updateUser, deleteUser, updateProfile};

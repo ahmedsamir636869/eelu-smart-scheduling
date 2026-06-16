@@ -17,7 +17,11 @@ interface BackendResponse<T = any> {
  * - { success, message, ...other fields }
  * - Direct data responses
  */
-export function extractData<T>(response: BackendResponse<T> | T): T {
+export function extractData<T>(response: BackendResponse<T> | T, key?: string): T {
+  // If key is provided, try to extract that specific property first
+  if (key && response && typeof response === 'object' && key in response) {
+    return (response as any)[key] as T
+  }
   if (!response || typeof response !== 'object') {
     return response as T
   }
@@ -67,9 +71,34 @@ export function extractData<T>(response: BackendResponse<T> | T): T {
     return (response as any).courses as T
   }
 
+  // If response has 'courses' property (course getAll endpoint format)
+  if ('courses' in response) {
+    return (response as any).courses as T
+  }
+
   // If response has 'course' property (course create/get endpoint format)
   if ('course' in response) {
     return (response as any).course as T
+  }
+
+  // If response has 'studentGroups' property (studentGroup getAll endpoint format)
+  if ('studentGroups' in response) {
+    return (response as any).studentGroups as T
+  }
+
+  // If response has 'studentGroup' property (studentGroup create/get endpoint format)
+  if ('studentGroup' in response) {
+    return (response as any).studentGroup as T
+  }
+
+  // If response has 'instructors' property (instructor getAll endpoint format)
+  if ('instructors' in response) {
+    return (response as any).instructors as T
+  }
+
+  // If response has 'instructor' property (instructor create/get endpoint format)
+  if ('instructor' in response) {
+    return (response as any).instructor as T
   }
 
   // If response has 'success' and other properties, extract the main data

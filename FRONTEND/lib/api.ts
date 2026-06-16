@@ -1,7 +1,7 @@
 import { getAccessToken, removeAccessToken, isTokenExpired } from './auth'
 import { extractData, extractErrorMessage } from './api-helpers'
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000/api/v1'
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:4000/api/v1'
 
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
@@ -104,20 +104,18 @@ async function request<T>(
     }
 
     if (!response.ok) {
-      // For 400 errors on department getAll, check if it's "failed to find departments"
-      // which might mean no departments exist (should return empty array)
-      if (response.status === 400 && endpoint.includes('/department/collegeId/')) {
-        try {
-          const errorJson = await response.json()
-          // If the error message is about not finding departments, return empty array
-          if (errorJson.message?.toLowerCase().includes('failed to find departments')) {
-            return [] as T
-          }
-        } catch {
-          // If can't parse error, continue with normal error handling
-        }
+      // For any errors on department getAll endpoint, return empty array
+      // This handles: validation errors, not found, failed to find departments, etc.
+      if (endpoint.includes('/department/collegeId/')) {
+        console.warn(`Department fetch returned ${response.status}, returning empty array`)
+        return [] as T
       }
-      
+
+      // For 404 errors on department endpoints, return empty array
+      if (response.status === 404 && endpoint.includes('/department/')) {
+        return [] as T
+      }
+
       let errorMessage = `API Error: ${response.statusText}`
       let errorData: any = null
 
@@ -140,7 +138,7 @@ async function request<T>(
     if (error instanceof ApiError) {
       throw error
     }
-    
+
     // Handle network errors (Failed to fetch)
     if (error instanceof TypeError && error.message.includes('fetch')) {
       console.error('Network error:', error)
@@ -150,7 +148,7 @@ async function request<T>(
         0
       )
     }
-    
+
     throw new ApiError(
       error instanceof Error ? error.message : 'Network error occurred',
       0
@@ -192,20 +190,50 @@ export const api = {
 
 // Schedule-specific API functions
 export const scheduleApi = {
-  generate: async (campusId: string, semester: string) => {
+  generate: async (campusId: string, semester: string, scheduleType?: 'lectures' | 'sections' | 'all') => {
     const response = await api.post<any>(
       '/schedule/generate',
-      { campusId, semester }
+      { campusId, semester, scheduleType: scheduleType || 'all' }
     )
     // Backend returns { success, message, schedule }
     // extractData will extract the schedule object
     // Schedule object has: { id, semester, generatedBy, sessions, totalSessions }
-    return response
+    return extractData(response, 'schedule') || response
   },
 
-  getAll: () => api.get<any[]>('/schedule'),
+  getAll: async () => {
+    const response = await api.get<any>('/schedule')
+    return extractData(response, 'schedules') || []
+  },
 
-  getById: (id: string) => api.get<any>(`/schedule/${id}`),
+  getById: async (id: string) => {
+    const response = await api.get<any>(`/schedule/${id}`)
+    return extractData(response, 'schedule')
+  },
+}
+
+// Import API functions
+export const importApi = {
+  import: async (category: string, formData: FormData) => {
+    const token = getAccessToken()
+    const response = await fetch(`${API_BASE_URL}/import/${category}`, {
+      method: 'POST',
+      headers: {
+        Authorization: token ? `Bearer ${token}` : '',
+      },
+      body: formData,
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new ApiError(
+        errorData.message || errorData.error || 'Import failed',
+        response.status
+      )
+    }
+
+    return response.json()
+  },
 }
 
 // Campus API functions
@@ -318,6 +346,18 @@ export const courseApi = {
   update: (id: string, data: any) => api.patch<any>(`/course/${id}`, data),
 
   delete: (id: string) => api.delete(`/course/${id}`),
+}
+
+// User API functions
+export const userApi = {
+  getProfile: () => api.get<any>('/auth/me'),
+
+  updateProfile: (data: {
+    name?: string
+    email?: string
+    password?: string
+    isExpatriate?: boolean
+  }) => api.patch<any>('/auth/me', data),
 }
 
 export { ApiError }

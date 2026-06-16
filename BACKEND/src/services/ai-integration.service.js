@@ -45,14 +45,30 @@ class AIIntegrationService {
     }
     console.log('✅ AI service is healthy');
 
-    // 1. Fetch data from database
+    // 1. Fetch data from database (filtered by campus)
     console.log('📊 Fetching data from database...');
     const rooms = await this.fetchRooms(campusId);
-    const courses = await this.fetchCourses();
-    const instructors = await this.fetchInstructors();
-    const divisions = await this.fetchDivisions();
+    const courses = await this.fetchCourses(campusId);
+    const instructors = await this.fetchInstructors(campusId);
+    const divisions = await this.fetchDivisions(campusId);
 
     console.log(`Found: ${rooms.length} rooms, ${courses.length} courses, ${instructors.length} instructors, ${divisions.length} divisions`);
+
+    // Validate that we have sufficient data for this campus
+    const missingData = [];
+    if (rooms.length === 0) missingData.push('classrooms');
+    if (courses.length === 0) missingData.push('courses');
+    if (instructors.length === 0) missingData.push('instructors');
+    if (divisions.length === 0) missingData.push('student groups');
+
+    if (missingData.length > 0) {
+      const campus = await prisma.campus.findUnique({ where: { id: campusId } });
+      const campusName = campus?.name || campusId;
+      throw new Error(
+        `Cannot generate schedule for "${campusName}": Missing ${missingData.join(', ')}. ` +
+        `Please add the required data to this campus before generating a schedule.`
+      );
+    }
 
     // 2. Transform to AI format
     console.log('🔄 Transforming data for AI...');
@@ -107,10 +123,16 @@ class AIIntegrationService {
   }
 
   /**
-   * Fetch all courses with relations
+   * Fetch courses for a specific campus (via college relationship)
+   * @param {string} campusId - Campus ID to filter courses by
    */
-  async fetchCourses() {
+  async fetchCourses(campusId) {
     return prisma.course.findMany({
+      where: {
+        college: {
+          campusId: campusId
+        }
+      },
       include: {
         department: true,
         college: true,
@@ -120,10 +142,18 @@ class AIIntegrationService {
   }
 
   /**
-   * Fetch all instructors with relations
+   * Fetch instructors for a specific campus (via department -> college relationship)
+   * @param {string} campusId - Campus ID to filter instructors by
    */
-  async fetchInstructors() {
+  async fetchInstructors(campusId) {
     return prisma.instructor.findMany({
+      where: {
+        department: {
+          college: {
+            campusId: campusId
+          }
+        }
+      },
       include: {
         department: true
       }
@@ -131,10 +161,18 @@ class AIIntegrationService {
   }
 
   /**
-   * Fetch all student groups with relations
+   * Fetch student groups for a specific campus (via department -> college relationship)
+   * @param {string} campusId - Campus ID to filter student groups by
    */
-  async fetchDivisions() {
+  async fetchDivisions(campusId) {
     return prisma.studentGroup.findMany({
+      where: {
+        department: {
+          college: {
+            campusId: campusId
+          }
+        }
+      },
       include: {
         department: true
       }
@@ -243,15 +281,127 @@ class AIIntegrationService {
             name: {
               contains: courseName
             }
+          },
+          include: {
+            instructor: true // Include instructor relation for fallback
           }
         });
 
-        // Find instructor by name
-        const instructor = await prisma.user.findFirst({
+        // Find instructor by name - try multiple strategies
+        // Clean the instructor name (remove common prefixes/suffixes)
+        const cleanInstructorName = item.instructor_name
+          .replace(/^(Dr\.|Dr|Prof\.|Prof|Mr\.|Mr|Mrs\.|Mrs|Ms\.|Ms)\s+/i, '')
+          .trim();
+
+        // First try to find in User table (for sessions) - exact match
+        let instructor = await prisma.user.findFirst({
           where: {
-            name: item.instructor_name
+            name: {
+              equals: item.instructor_name,
+              mode: 'insensitive'
+            },
+            roles: {
+              has: 'INSTRUCTOR'
+            }
           }
         });
+
+        // If not found, try with cleaned name
+        if (!instructor) {
+          instructor = await prisma.user.findFirst({
+            where: {
+              name: {
+                equals: cleanInstructorName,
+                mode: 'insensitive'
+              },
+              roles: {
+                has: 'INSTRUCTOR'
+              }
+            }
+          });
+        }
+
+        // If not found, try partial match with original name
+        if (!instructor) {
+          instructor = await prisma.user.findFirst({
+            where: {
+              name: {
+                contains: item.instructor_name,
+                mode: 'insensitive'
+              },
+              roles: {
+                has: 'INSTRUCTOR'
+              }
+            }
+          });
+        }
+
+        // If still not found, try partial match with cleaned name
+        if (!instructor) {
+          instructor = await prisma.user.findFirst({
+            where: {
+              name: {
+                contains: cleanInstructorName,
+                mode: 'insensitive'
+              },
+              roles: {
+                has: 'INSTRUCTOR'
+              }
+            }
+          });
+        }
+
+        // If still not found, try to find Instructor record first, then match User
+        if (!instructor) {
+          const instructorRecord = await prisma.instructor.findFirst({
+            where: {
+              OR: [
+                { name: { equals: item.instructor_name, mode: 'insensitive' } },
+                { name: { equals: cleanInstructorName, mode: 'insensitive' } },
+                { name: { contains: item.instructor_name, mode: 'insensitive' } },
+                { name: { contains: cleanInstructorName, mode: 'insensitive' } }
+              ]
+            }
+          });
+
+          if (instructorRecord) {
+            // Try to find User by matching instructor name (exact)
+            instructor = await prisma.user.findFirst({
+              where: {
+                name: {
+                  equals: instructorRecord.name,
+                  mode: 'insensitive'
+                },
+                roles: {
+                  has: 'INSTRUCTOR'
+                }
+              }
+            });
+
+            // If still not found, try partial match
+            if (!instructor) {
+              instructor = await prisma.user.findFirst({
+                where: {
+                  name: {
+                    contains: instructorRecord.name,
+                    mode: 'insensitive'
+                  },
+                  roles: {
+                    has: 'INSTRUCTOR'
+                  }
+                }
+              });
+            }
+          }
+        }
+
+        // Log warning if instructor not found
+        if (!instructor) {
+          console.warn(`⚠️ Instructor not found for: "${item.instructor_name}" (cleaned: "${cleanInstructorName}"). Session will be created without instructor assignment.`);
+          console.warn(`   Course: ${item.course_name}, Room: ${item.room}`);
+        } else {
+          console.log(`✓ Found instructor: ${instructor.name} (ID: ${instructor.id}) for "${item.instructor_name}"`);
+        }
 
         // Find classroom by name and campus
         const classroom = await prisma.classroom.findFirst({
@@ -275,6 +425,49 @@ class AIIntegrationService {
         const startTime = this.parseTime(item.start_time);
         const endTime = this.parseTime(item.end_time);
 
+        // Ensure courseId is set - it's required in the schema
+        if (!course?.id) {
+          console.warn(`⚠️ Course not found for: ${courseName}. Skipping session creation.`);
+          continue;
+        }
+
+        // Fallback: If instructor not found by name, try to use course's assigned instructor
+        if (!instructor && course.instructor) {
+          // Try to find User by matching instructor name
+          instructor = await prisma.user.findFirst({
+            where: {
+              name: {
+                equals: course.instructor.name,
+                mode: 'insensitive'
+              },
+              roles: {
+                has: 'INSTRUCTOR'
+              }
+            }
+          });
+
+          if (instructor) {
+            console.log(`✓ Using course's assigned instructor: ${instructor.name} for "${item.course_name}"`);
+          } else if (course.instructor) {
+            // Try partial match
+            instructor = await prisma.user.findFirst({
+              where: {
+                name: {
+                  contains: course.instructor.name,
+                  mode: 'insensitive'
+                },
+                roles: {
+                  has: 'INSTRUCTOR'
+                }
+              }
+            });
+
+            if (instructor) {
+              console.log(`✓ Using course's assigned instructor (partial match): ${instructor.name} for "${item.course_name}"`);
+            }
+          }
+        }
+
         const session = await prisma.session.create({
           data: {
             name: item.course_name,
@@ -283,7 +476,7 @@ class AIIntegrationService {
             startTime: startTime,
             endTime: endTime,
             studentCount: item.students,
-            courseId: course?.id,
+            courseId: course.id, // Now guaranteed to exist
             instructorId: instructor?.id,
             classroomId: classroom?.id,
             scheduleId: schedule.id
@@ -299,10 +492,46 @@ class AIIntegrationService {
 
     console.log(`✅ Created ${sessions.length} sessions`);
 
+    // Fetch the complete schedule with all relations including course year
+    const completeSchedule = await prisma.schedule.findUnique({
+      where: { id: schedule.id },
+      include: {
+        sessions: {
+          include: {
+            course: {
+              select: {
+                id: true,
+                code: true,
+                name: true,
+                type: true,
+                year: true
+              }
+            },
+            instructor: {
+              select: {
+                id: true,
+                name: true
+              }
+            },
+            classroom: {
+              select: {
+                id: true,
+                name: true,
+                capacity: true
+              }
+            }
+          },
+          orderBy: [
+            { day: 'asc' },
+            { startTime: 'asc' }
+          ]
+        }
+      }
+    });
+
     // Return schedule with sessions
     return {
-      ...schedule,
-      sessions: sessions,
+      ...completeSchedule,
       totalSessions: sessions.length
     };
   }
@@ -321,14 +550,14 @@ class AIIntegrationService {
     if (timeString.includes('AM') || timeString.includes('PM')) {
       const [time, period] = timeString.split(' ');
       const [hours, minutes] = time.split(':').map(Number);
-      
+
       let hour = hours;
       if (period === 'PM' && hours !== 12) {
         hour = hours + 12;
       } else if (period === 'AM' && hours === 12) {
         hour = 0;
       }
-      
+
       today.setHours(hour, minutes);
     } else {
       // 24-hour format

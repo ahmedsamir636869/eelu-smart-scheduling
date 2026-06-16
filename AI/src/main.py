@@ -128,6 +128,10 @@ async def generate_schedule(request: ScheduleRequest):
     except HTTPException:
         raise
     except Exception as e:
+        import traceback
+        error_traceback = traceback.format_exc()
+        print(f"Error generating schedule: {str(e)}")
+        print(f"Traceback: {error_traceback}")
         raise HTTPException(
             status_code=500,
             detail=f"Error generating schedule: {str(e)}"

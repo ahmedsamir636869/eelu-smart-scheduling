@@ -1,0 +1,178 @@
+{
+  "allCampuses": [
+    {
+      "id": "cmle3hfd80000p060gumfi1d4",
+      "name": "Assiut",
+      "city": "Assiut",
+      "colleges": [
+        {
+          "id": "cmle3hfdc0001p0609n0ply5z",
+          "name": "IT"
+        },
+        {
+          "id": "cmle3hfdc0002p060myqhz5xq",
+          "name": "Business"
+        }
+      ]
+    }
+  ],
+  "assiutId": "cmle3hfd80000p060gumfi1d4",
+  "assiutCollegeIds": [
+    "cmle3hfdc0001p0609n0ply5z",
+    "cmle3hfdc0002p060myqhz5xq"
+  ],
+  "assiutDepartments": [
+    {
+      "id": "cmle3hgt00004p0609q287g20",
+      "name": "Information technology",
+      "code": "IT",
+      "collegeId": "cmle3hfdc0001p0609n0ply5z"
+    },
+    {
+      "id": "cmle3hhjw0006p060ssf94aa9",
+      "name": "business admin",
+      "code": "BA",
+      "collegeId": "cmle3hfdc0002p060myqhz5xq"
+    }
+  ],
+  "assiutDepartmentIds": [
+    "cmle3hgt00004p0609q287g20",
+    "cmle3hhjw0006p060ssf94aa9"
+  ],
+  "classrooms": 16,
+  "classroomDetails": [
+    {
+      "id": "cmlfb4xc00001p0p07jwp350h",
+      "name": "lap 1",
+      "type": "LAB"
+    },
+    {
+      "id": "cmlfb52l20003p0p01zj16t82",
+      "name": "lap 2",
+      "type": "LAB"
+    },
+    {
+      "id": "cmlfb5adc0005p0p00xqlfjd1",
+      "name": "lap 3",
+      "type": "LAB"
+    },
+    {
+      "id": "cmlfb5m6u0007p0p00r5ez70x",
+      "name": "lap 4",
+      "type": "LAB"
+    },
+    {
+      "id": "cmlfb5zgd0009p0p0fp6zyjyz",
+      "name": "room 1",
+      "type": "LECTURE_HALL"
+    },
+    {
+      "id": "cmlfb65l0000bp0p01ydlqkyp",
+      "name": "room 2",
+      "type": "LECTURE_HALL"
+    },
+    {
+      "id": "cmlfb8jgw000dp0p0zpfq1cxe",
+      "name": "room 3",
+      "type": "LECTURE_HALL"
+    },
+    {
+      "id": "cmlfb8rqv000fp0p0jpumoe2c",
+      "name": "room 4",
+      "type": "LECTURE_HALL"
+    },
+    {
+      "id": "cmlfd3r3k0009p06ky8ruvnoh",
+      "name": "Room 1",
+      "type": "LAB"
+    },
+    {
+      "id": "cmlfd3r9j000bp06k52d6jj6v",
+      "name": "Room 2",
+      "type": "LAB"
+    },
+    {
+      "id": "cmlfd3rd4000dp06kvtfz6x69",
+      "name": "Room 3",
+      "type": "LAB"
+    },
+    {
+      "id": "cmlfd3rgx000fp06kom9rj02b",
+      "name": "Room 4",
+      "type": "LAB"
+    },
+    {
+      "id": "cmlfd3rl8000hp06kco29lnmi",
+      "name": "Room 5",
+      "type": "LAB"
+    },
+    {
+      "id": "cmlfd3rpv000jp06k7m90110p",
+      "name": "Terrace 8",
+      "type": "LECTURE_HALL"
+    },
+    {
+      "id": "cmlfd3ruj000lp06kkv19qywr",
+      "name": "terrace4",
+      "type": "LECTURE_HALL"
+    },
+    {
+      "id": "cmlfd3rzl000np06k42tmt2ai",
+      "name": "Hall 16",
+      "type": "LECTURE_HALL"
+    }
+  ],
+  "courses": 0,
+  "courseDetails": [],
+  "instructors": 0,
+  "instructorDetails": [],
+  "studentGroups": 3,
+  "studentGroupDetails": [
+    {
+      "id": "cmlfbxetu0001p0bgjscgfpfl",
+      "name": "Group A",
+      "year": 1,
+      "departmentId": "cmle3hgt00004p0609q287g20",
+      "departmentName": "Information technology",
+      "collegeName": "IT"
+    },
+    {
+      "id": "cmlfbxquf0003p0bgy75qfphp",
+      "name": "Group B",
+      "year": 1,
+      "departmentId": "cmle3hgt00004p0609q287g20",
+      "departmentName": "Information technology",
+      "collegeName": "IT"
+    },
+    {
+      "id": "cmlfby8750005p0bgtuqkqvoc",
+      "name": "Group D",
+      "year": 2,
+      "departmentId": "cmle3hhjw0006p060ssf94aa9",
+      "departmentName": "business admin",
+      "collegeName": "Business"
+    }
+  ],
+  "totalCourses": 53,
+  "totalInstructors": 162,
+  "totalStudentGroups": 15,
+  "coursesByCollege": {
+    "IT": 53
+  },
+  "instructorsByCollege": {
+    "IT": 162
+  },
+  "studentGroupsByCollege": {
+    "IT": 14,
+    "Business": 1
+  },
+  "summary": {
+    "forAssiut": {
+      "classrooms": 16,
+      "courses": 0,
+      "instructors": 0,
+      "studentGroups": 3
+    },
+    "canGenerate": false
+  }
+}

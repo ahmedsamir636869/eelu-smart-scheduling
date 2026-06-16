@@ -7,12 +7,21 @@ import { useAuth } from '@/contexts/AuthContext'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+import { Select } from '@/components/ui/Select'
 import { MainLayout } from '@/components/layout/MainLayout'
+
+const roleOptions = [
+  { value: '', label: 'Select your role' },
+  { value: 'INSTRUCTOR', label: 'Instructor' },
+  { value: 'ADMIN', label: 'Admin' },
+  { value: 'TA', label: 'Teaching Assistant' },
+]
 
 export default function LoginPage() {
   const searchParams = useSearchParams()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [role, setRole] = useState('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [loading, setLoading] = useState(false)
@@ -30,10 +39,16 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+
+    if (!role) {
+      setError('Please select a role')
+      return
+    }
+
     setLoading(true)
 
     try {
-      await login(email, password)
+      await login(email, password, role)
     } catch (err: any) {
       setError(err.message || 'Login failed. Please check your credentials.')
     } finally {
@@ -46,7 +61,7 @@ export default function LoginPage() {
       <div className="max-w-md mx-auto mt-8">
         <Card>
           <h1 className="text-2xl font-bold text-white mb-6">Login</h1>
-          
+
           {error && (
             <div className="mb-4 p-3 bg-red-900/50 border border-red-700 rounded-lg text-red-200 text-sm">
               {error}
@@ -86,6 +101,18 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 placeholder="Enter your password"
+                disabled={loading}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="role" className="block text-sm font-medium text-gray-300 mb-2">
+                Role
+              </label>
+              <Select
+                options={roleOptions}
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
                 disabled={loading}
               />
             </div>

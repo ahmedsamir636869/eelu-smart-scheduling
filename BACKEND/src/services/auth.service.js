@@ -6,8 +6,8 @@ const { generateTokens, verifyRefreshToken } = require('../utils/jwt.js');
 const { sendEmail } = require('../utils/mailer.js');
 
 class AuthService {
-  async register(email, password, name, role) {
-    const hashedPassword = await hashPassword(password);
+  async register(email, password, name, role, isExpatriate) {
+    const hashedPassword = await hashPassword(password); 
     
     const emailOtp = Math.floor(100000 + Math.random() * 900000).toString();
     const otpExpiry = new Date(Date.now() + 10 * 60 * 1000);
@@ -18,10 +18,27 @@ class AuthService {
         name,
         password: hashedPassword,
         roles: [role], 
+        isExpatriate,
         emailVerificationOtp: emailOtp,
         emailVerificationOtpExpires: otpExpiry,
       },
     });
+
+    const instructor = await prisma.instructor.findUnique({ where: { email } });
+    if (instructor && !instructor.userId) {
+      await prisma.instructor.update({
+        where: { id: instructor.id },
+        data:  { userId: user.id }
+      });
+    }
+
+    const ta = await prisma.tA.findUnique({ where: { email } });
+    if (ta && !ta.userId) {
+      await prisma.tA.update({
+        where: { id: ta.id },
+        data:  { userId: user.id }
+      });
+    }
 
     try {
       await sendEmail(email, 'Email Verification - EELU', 'email-verification.html', {
@@ -36,8 +53,14 @@ class AuthService {
     return user;
   }
 
-  async login(email, password) {
-    const user = await prisma.user.findUnique({ where: { email } });
+  async login(email, password, role, isExpatriate) {
+    const user = await prisma.user.findUnique({
+      where: { email },
+      include: {
+        instructor: { select: { id: true } },
+        ta:         { select: { id: true } }
+      }
+    });
     if (!user || !user.emailVerified) {
       throw new Error('Invalid credentials or email not verified');
     }
@@ -52,7 +75,14 @@ class AuthService {
     return {
       accessToken,
       refreshToken,
-      user: { id: user.id, email: user.email, roles: user.roles }, 
+      user: {
+        id:           user.id,
+        email:        user.email,
+        roles:        user.roles,
+        isExpatriate: user.isExpatriate,
+        instructor:   user.instructor ?? null,
+        ta:           user.ta ?? null
+      },
     };
   }
 

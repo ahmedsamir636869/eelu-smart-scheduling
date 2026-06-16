@@ -14,7 +14,7 @@ const createDepartment = async (name, code, collegeId) => {
 const getAllDepartments = async (collegeId) => {
     const Departments = await prisma.department.findMany({
         where: {
-            collegeId
+            collegeId: collegeId
         }
     });
     return Departments;

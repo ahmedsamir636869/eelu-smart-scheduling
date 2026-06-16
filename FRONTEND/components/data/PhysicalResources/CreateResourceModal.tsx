@@ -8,30 +8,41 @@ import { Input } from '@/components/ui/Input'
 interface CreateResourceModalProps {
   isOpen: boolean
   onClose: () => void
-  onCreate: (data: { name: string; capacity: number }) => void
+  onCreate: (data: { name: string; capacity: number }) => Promise<void>
   resourceType: 'lab' | 'room'
 }
 
 export function CreateResourceModal({ isOpen, onClose, onCreate, resourceType }: CreateResourceModalProps) {
   const [name, setName] = useState('')
   const [capacity, setCapacity] = useState(25)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   if (!isOpen) return null
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (name.trim()) {
-      onCreate({
-        name: name.trim(),
-        capacity,
-      })
-      setName('')
-      setCapacity(25)
-      onClose()
+      try {
+        setIsSubmitting(true)
+        await onCreate({
+          name: name.trim(),
+          capacity,
+        })
+        setName('')
+        setCapacity(25)
+        // onClose is called by the parent after success, or we can close it here
+        // If the parent handles errors by throwing, we won't close on error
+      } catch (error) {
+        // Error handling is done by parent (showing message)
+        // We just stop loading
+      } finally {
+        setIsSubmitting(false)
+      }
     }
   }
 
   const handleClose = () => {
+    if (isSubmitting) return
     setName('')
     setCapacity(25)
     onClose()
@@ -50,7 +61,8 @@ export function CreateResourceModal({ isOpen, onClose, onCreate, resourceType }:
           </div>
           <button
             onClick={handleClose}
-            className="text-gray-400 hover:text-white transition-colors flex-shrink-0"
+            disabled={isSubmitting}
+            className="text-gray-400 hover:text-white transition-colors flex-shrink-0 disabled:opacity-50"
           >
             <X className="w-5 h-5 sm:w-6 sm:h-6" />
           </button>
@@ -68,6 +80,7 @@ export function CreateResourceModal({ isOpen, onClose, onCreate, resourceType }:
               onChange={(e) => setName(e.target.value)}
               placeholder={resourceType === 'lab' ? 'e.g., Lab 3' : 'e.g., Room 6'}
               required
+              disabled={isSubmitting}
               className="w-full"
             />
           </div>
@@ -82,17 +95,29 @@ export function CreateResourceModal({ isOpen, onClose, onCreate, resourceType }:
               onChange={(e) => setCapacity(parseInt(e.target.value) || 0)}
               min="1"
               required
+              disabled={isSubmitting}
               className="w-full"
             />
           </div>
 
           {/* Footer */}
           <div className="flex flex-col sm:flex-row justify-end gap-3 pt-4 border-t border-gray-700">
-            <Button variant="secondary" onClick={handleClose} type="button" className="w-full sm:w-auto">
+            <Button
+              variant="secondary"
+              onClick={handleClose}
+              type="button"
+              className="w-full sm:w-auto"
+              disabled={isSubmitting}
+            >
               Cancel
             </Button>
-            <Button variant="primary" type="submit" className="w-full sm:w-auto">
-              Create {resourceLabel}
+            <Button
+              variant="primary"
+              type="submit"
+              className="w-full sm:w-auto"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? 'Creating...' : `Create ${resourceLabel}`}
             </Button>
           </div>
         </form>

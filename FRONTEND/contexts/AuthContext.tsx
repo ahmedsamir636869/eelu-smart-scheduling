@@ -15,8 +15,8 @@ interface User {
 interface AuthContextType {
   user: User | null
   loading: boolean
-  login: (email: string, password: string) => Promise<void>
-  register: (email: string, password: string, name: string, role: string) => Promise<void>
+  login: (email: string, password: string, role?: string) => Promise<void>
+  register: (email: string, password: string, name: string, role: string, isExpatriate?: boolean) => Promise<void>
   logout: () => Promise<void>
   refreshToken: () => Promise<void>
   isAuthenticated: boolean
@@ -62,15 +62,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     initializeAuth()
   }, [])
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string, role?: string) => {
     try {
       const response = await api.post<{ accessToken: string; user: User }>(
         '/auth/login',
-        { email, password },
+        { email, password, role },
         undefined,
         false // Don't require auth for login
       )
-      
+
       setAccessToken(response.accessToken)
       setUser(response.user)
       router.push('/dashboard')
@@ -79,20 +79,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  const register = async (email: string, password: string, name: string, role: string) => {
+  const register = async (email: string, password: string, name: string, role: string, isExpatriate: boolean = false) => {
     try {
       const response = await api.post<{ message: string; user: User }>(
         '/auth/register',
-        { email, password, name, role },
+        { email, password, name, role, isExpatriate },
         undefined,
         false // Don't require auth for register
       )
-      
+
       // Store email for OTP verification
       if (typeof window !== 'undefined') {
         localStorage.setItem('pendingVerificationEmail', email)
       }
-      
+
       // Redirect to OTP verification page instead of auto-login
       router.push(`/verify-email?email=${encodeURIComponent(email)}`)
     } catch (error: any) {

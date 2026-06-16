@@ -3,6 +3,7 @@ Data loader service for JSON data.
 """
 
 from typing import Dict, List, Tuple, Any
+import pandas as pd
 from .utils import time_to_minutes
 
 
@@ -24,6 +25,12 @@ class DataLoader:
         self.division_dict: Dict[str, Dict] = {}
         self.lecture_rooms: List[str] = []
         self.lab_rooms: List[str] = []
+        
+        # DataFrames for compatibility with scheduler
+        self.rooms_df: pd.DataFrame = pd.DataFrame()
+        self.courses_df: pd.DataFrame = pd.DataFrame()
+        self.doctors_df: pd.DataFrame = pd.DataFrame()
+        self.divisions_df: pd.DataFrame = pd.DataFrame()
         
         self._is_loaded = False
     
@@ -106,6 +113,27 @@ class DataLoader:
         # Separate rooms by type
         self.lecture_rooms = [r for r in self.room_dict.keys() if self.room_dict[r]['type'] == 'Lecture']
         self.lab_rooms = [r for r in self.room_dict.keys() if self.room_dict[r]['type'] == 'Lab']
+        
+        # Create DataFrames for compatibility with scheduler
+        if self.rooms_data:
+            self.rooms_df = pd.DataFrame(self.rooms_data)
+        else:
+            self.rooms_df = pd.DataFrame(columns=['Room_ID', 'Room', 'Capacity', 'Type'])
+        
+        if self.courses_data:
+            self.courses_df = pd.DataFrame(self.courses_data)
+        else:
+            self.courses_df = pd.DataFrame(columns=['Course_ID', 'Course_Name', 'Department', 'Major', 'Days', 'Hours_per_day', 'Instructor_ID', 'Year', 'Type'])
+        
+        if self.doctors_data:
+            self.doctors_df = pd.DataFrame(self.doctors_data)
+        else:
+            self.doctors_df = pd.DataFrame(columns=['Instructor_ID', 'Instructor_Name', 'Department', 'Day', 'Start_Time', 'End_Time'])
+        
+        if self.divisions_data:
+            self.divisions_df = pd.DataFrame(self.divisions_data)
+        else:
+            self.divisions_df = pd.DataFrame(columns=['Num_ID', 'Department', 'Major', 'Year', 'StudentNum'])
     
     def is_loaded(self) -> bool:
         """Check if data has been loaded."""

@@ -1,0 +1,50 @@
+{
+  "allColleges": [
+    {
+      "id": "cml9l59ca0001p074mz6i936f",
+      "name": "IT",
+      "campusId": null,
+      "campusName": "ORPHANED (No Campus)"
+    },
+    {
+      "id": "cml9l59cb0002p07477do3hjk",
+      "name": "Business",
+      "campusId": null,
+      "campusName": "ORPHANED (No Campus)"
+    },
+    {
+      "id": "cmle3hfdc0001p0609n0ply5z",
+      "name": "IT",
+      "campusId": "cmle3hfd80000p060gumfi1d4",
+      "campusName": "Assiut"
+    },
+    {
+      "id": "cmle3hfdc0002p060myqhz5xq",
+      "name": "Business",
+      "campusId": "cmle3hfd80000p060gumfi1d4",
+      "campusName": "Assiut"
+    },
+    {
+      "id": "cmlbf098f0001fcy4fpfu1pro",
+      "name": "IT",
+      "campusId": null,
+      "campusName": "ORPHANED (No Campus)"
+    },
+    {
+      "id": "cmlbf098f0002fcy47n6yff8p",
+      "name": "Business",
+      "campusId": null,
+      "campusName": "ORPHANED (No Campus)"
+    }
+  ],
+  "orphanedColleges": [
+    "cml9l59ca0001p074mz6i936f",
+    "cml9l59cb0002p07477do3hjk",
+    "cmlbf098f0001fcy4fpfu1pro",
+    "cmlbf098f0002fcy47n6yff8p"
+  ],
+  "coursesInOrphanedColleges": 53,
+  "departmentsInOrphanedColleges": 2,
+  "instructorsInOrphanedColleges": 162,
+  "studentGroupsInOrphanedColleges": 12
+}

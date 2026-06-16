@@ -31,13 +31,32 @@ const getAllCampusesController = async (req, res) => {
 
 const getCampusByIdController = async (req, res) => {
     const campusId = req.params.campusId;
+    
+    // Validate campusId
+    if (!campusId || campusId === 'undefined') {
+        return res.status(STATUS_MESSAGES.BAD_REQUEST).json({
+            message: "Validation failed",
+            error: "Campus ID is required and cannot be undefined"
+        });
+    }
+    
     try{
         const campus = await getCampusById(campusId);
+        if (!campus) {
+            return res.status(STATUS_MESSAGES.NOT_FOUND || 404).json({
+                message: "Campus not found",
+                error: `No campus found with ID: ${campusId}`
+            });
+        }
         return res.status(STATUS_MESSAGES.OK).json({
-            massafe:"Your Campus:", campus
+            message: "Your Campus:",
+            campus
         });
     }catch(error){
-        return res.status(STATUS_MESSAGES.BAD_REQUEST).json({message: "failed to fetch the wanted campus", error: error.message})
+        return res.status(STATUS_MESSAGES.BAD_REQUEST).json({
+            message: "failed to fetch the wanted campus",
+            error: error.message
+        });
     }
 }
 
@@ -59,14 +78,34 @@ const updateCampusController = async (req, res) => {
 
 const deleteCampusController = async (req, res) => {
     const campusId = req.params.campusId;
+    
+    // Validate campusId
+    if (!campusId || campusId === 'undefined') {
+        return res.status(STATUS_MESSAGES.BAD_REQUEST).json({
+            message: "Validation failed",
+            error: "Campus ID is required and cannot be undefined"
+        });
+    }
+    
     try{
         const deletedCampus = await deleteCampus(campusId);
         return res.status(STATUS_MESSAGES.OK).json({
+            success: true,
             message: "Campus deleted successfully",
             deletedCampus
         });
     }catch(error){
-            return res.status(STATUS_MESSAGES.BAD_REQUEST).json({message: "failed to delete the campus" , error: error.message})
+        console.error('Delete Campus Error:', error);
+        // Return appropriate status code based on error type
+        const statusCode = error.message.includes('not found') 
+            ? STATUS_MESSAGES.NOT_FOUND || 404
+            : STATUS_MESSAGES.BAD_REQUEST;
+            
+        return res.status(statusCode).json({
+            success: false,
+            message: "Failed to delete the campus",
+            error: error.message
+        });
     }
 }
 
