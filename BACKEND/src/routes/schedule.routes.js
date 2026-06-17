@@ -5,6 +5,7 @@ const {
   getAllSchedulesController 
 } = require('../controllers/schedule.controller');
 const { isAuthenticated, isAdmin } = require('../middleware/auth.middleware');
+const { validate, paramsSchema, generateScheduleSchema } = require('../validators/schedule.validator');
 
 const router = express.Router();
 
@@ -20,13 +21,13 @@ router.get('/', isAuthenticated, getAllSchedulesController);
  * @desc    Get schedule by ID
  * @access  Authenticated
  */
-router.get('/:id', isAuthenticated, getScheduleByIdController);
+router.get('/:id', isAuthenticated, validate(paramsSchema, 'params'), getScheduleByIdController);
 
 /**
  * @route   POST /api/v1/schedule/generate
  * @desc    Generate schedule using AI
  * @access  Admin only
  */
-router.post('/generate', isAuthenticated, isAdmin, generateScheduleController);
+router.post('/generate', isAuthenticated, isAdmin, validate(generateScheduleSchema, 'body'), generateScheduleController);
 
 module.exports = router;

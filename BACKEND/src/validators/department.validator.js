@@ -6,7 +6,7 @@ const cuidSchema = Joi.string()
     .required();
 
 const cuidMessages = {
-    'string.pattern.base': '"{#label}" must be a valid CUID',
+    'string.pattern.base': '{#label} must be a valid CUID',
 };
 
 const createDepartmentSchema = Joi.object({

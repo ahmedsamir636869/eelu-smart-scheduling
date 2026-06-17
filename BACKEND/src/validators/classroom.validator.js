@@ -1,4 +1,5 @@
 const Joi = require("joi");
+const STATUS_MESSAGES = require("../constants/status.messages");
 
 const classroomTypes = ["LECTURE_HALL", "LAB"];
 

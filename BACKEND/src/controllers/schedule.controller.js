@@ -12,22 +12,6 @@ const generateScheduleController = async (req, res) => {
   try {
     const { campusId, semester, scheduleType } = req.body;
 
-    // Validation
-    if (!campusId || !semester) {
-      return res.status(STATUS_MESSAGES.BAD_REQUEST).json({
-        success: false,
-        message: 'campusId and semester are required'
-      });
-    }
-
-    // Validate scheduleType if provided
-    if (scheduleType && !['lectures', 'sections', 'all'].includes(scheduleType)) {
-      return res.status(STATUS_MESSAGES.BAD_REQUEST).json({
-        success: false,
-        message: 'scheduleType must be "lectures", "sections", or "all"'
-      });
-    }
-
     console.log('📥 Received schedule generation request');
     console.log('Campus ID:', campusId);
     console.log('Semester:', semester);

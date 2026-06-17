@@ -7,7 +7,7 @@ async function forgotPasswordController(req, res, next) {
         const result = await forgotPassword(email);
         res.status(200).json(result);
     } catch (error) {
-        next(error);
+        res.status(400).json({ message: error.message });
     }
 }
 
@@ -17,7 +17,7 @@ async function verifyOtpController(req, res, next) {
         const result = await verifyResetOtp(otp);
         res.status(200).json(result);
     } catch (error) {
-        next(error);
+        res.status(400).json({ message: error.message });
     }
 }
 
@@ -27,7 +27,7 @@ async function resetPasswordController(req, res, next) {
         const result = await resetPassword(otp, newPassword);
         res.status(200).json(result);
     } catch (error) {
-        next(error);
+        res.status(400).json({ message: error.message });
     }
 }
 
@@ -37,7 +37,7 @@ async function resendOtpController(req, res, next) {
         const result = await resendOtp(email);
         res.status(200).json(result);
     } catch (error) {
-        next(error);
+        res.status(400).json({ message: error.message });
     }
 }
 

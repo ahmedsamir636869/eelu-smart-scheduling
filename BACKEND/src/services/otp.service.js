@@ -38,7 +38,7 @@ async function forgotPassword(email) {
 }
 
 async function verifyResetOtp(otp) {
-    const user = await prisma.user.findUnique({ 
+    const user = await prisma.user.findFirst({ 
         where: { resetPasswordOtp: otp } 
     });
 
@@ -51,7 +51,7 @@ async function verifyResetOtp(otp) {
     }
 
     if (new Date() > new Date(user.resetPasswordOtpExpires)) {
-        await prisma.user.update({
+        await prisma.user.updateMany({
             where: { resetPasswordOtp: otp },
             data: {
                 resetPasswordOtp: null,
@@ -79,7 +79,7 @@ async function resetPassword(otp, newPassword) {
     const hashedPassword = await hashPassword(newPassword);
 
     // Find and update user by OTP
-    await prisma.user.update({
+    await prisma.user.updateMany({
         where: { resetPasswordOtp: otp.toString() },
         data: {
             password: hashedPassword,
