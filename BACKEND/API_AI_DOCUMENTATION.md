@@ -1,102 +1,104 @@
-# GA Scheduler API Documentation
+# Backend ↔ AI Scheduling Integration
 
-A Python FastAPI microservice that uses **Genetic Algorithm** to generate optimal university course schedules.
+The backend integrates with the Python **CP-SAT** scheduling microservice (FastAPI) to generate
+lecture and section schedules. This document describes the backend endpoint, the data flow, and the
+request/response contracts the backend uses when calling the AI service.
 
-## Overview
-
-This API accepts scheduling data as **JSON** and uses a Genetic Algorithm to find the best schedule that:
-- Avoids instructor conflicts
-- Avoids room conflicts  
-- Avoids student group (division) conflicts
-- Respects room capacities
-- Matches room types (Lab/Lecture) to course types
-- Follows instructor availability
+> The AI service is configured via `AI_API_URL` (default `http://localhost:8000`). See
+> [src/config/env.js](src/config/env.js).
 
 ---
 
-## Quick Start
+## Backend endpoint
 
-### Installation
-```bash
-pip install -r requirements.txt
-```
+### `POST /api/v1/schedule/generate`
 
-### Run the Server
-```bash
-uvicorn src.main:app --host 0.0.0.0 --port 8000
-```
+Generates a schedule for a campus. Admin only.
 
-### Interactive Docs
-Open your browser to: **http://localhost:8000/docs**
-
----
-
-## API Endpoints
-
-### `GET /`
-**Root endpoint** - Returns API info
-
-**Response:**
+**Request body:**
 ```json
 {
-  "name": "GA Scheduler API",
-  "version": "1.0.0",
-  "description": "Genetic Algorithm based course scheduling microservice",
-  "endpoints": {
-    "health": "/health",
-    "generate_schedule": "/schedule/generate",
-    "docs": "/docs"
+  "campusId": "cmxxxxxxxxxxxxxxxxxxxxxxx",
+  "semester": "Fall 2026",
+  "scheduleType": "all"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| campusId | string (CUID) | yes | Campus to generate the schedule for |
+| semester | string | yes | Semester label (2-100 chars) |
+| scheduleType | string | no | `lectures`, `sections`, or `all` (default `all`) |
+
+- `lectures`: run CP and save only lecture sessions.
+- `sections`: run CP (for time slots) and save only section sessions.
+- `all`: run CP and save both lecture and section sessions under one schedule.
+
+**Response (201):**
+```json
+{
+  "success": true,
+  "message": "Schedule generated successfully",
+  "schedule": {
+    "id": "cm...",
+    "semester": "Fall 2026",
+    "generatedBy": "AI-CP",
+    "sessions": [ /* LECTURE and/or SECTION sessions with course/instructor/classroom */ ],
+    "totalSessions": 0
   }
 }
 ```
 
+Other routes: `GET /api/v1/schedule` (all schedules), `GET /api/v1/schedule/:id` (one schedule).
+
 ---
 
-### `GET /health`
-**Health check** - Verify API is running
+## Data flow
 
-**Response:**
-```json
-{
-  "status": "healthy",
-  "message": "API is running. Send JSON data to /schedule/generate to create a schedule.",
-  "version": "1.0.0"
-}
+```text
+Backend (Express) ──► AI CP-SAT service (FastAPI)
+   1. Fetch campus data from Postgres (Prisma)
+   2. Transform to AI payloads
+   3. POST /cp/generate           → lecture schedule rows (JSON)
+   4. (sections) POST /sections/generate x2 (practical+LAB, theoretical+LECTURE) → section rows
+   5. Persist Schedule + Session rows in Postgres
 ```
 
+The AI service is **stateless** in this flow: it returns JSON and writes nothing to disk (the backend
+never sets `write_output`). The persistent system of record is the backend database (`Schedule` + `Session`).
+
+### Terminology mapping (AI ↔ backend)
+
+- `doctors` (AI) === `Instructor` (backend) — lecture professors.
+- `assistants` (AI) === `TA` (backend) — section teachers.
+- In a section row, `Instructor_Name` is the course's doctor and `Assistant_Name` is the TA.
+
 ---
 
-### `POST /schedule/generate`
-**Generate schedule** - Run the GA to create an optimized schedule
+## AI request: `POST {AI_API_URL}/cp/generate`
 
-**Request Body (required):**
 ```json
 {
   "data": {
     "rooms": [
-      {
-        "Room_ID": "R1",
-        "Room": "Hall A",
-        "Capacity": 100,
-        "Type": "Lecture"
-      }
+      { "Room_ID": "cm...", "Room": "Hall A", "Capacity": 100, "Type": "Lecture" }
     ],
     "courses": [
       {
-        "Course_ID": "CS101",
+        "Course_ID": "cs101",
         "Course_Name": "Introduction to Programming",
         "Department": "CS",
         "Major": "CS",
         "Days": 2,
         "Hours_per_day": 2,
-        "Instructor_ID": "D1",
+        "Instructor_ID": "cm...",
         "Year": 1,
         "Type": "Lecture"
       }
     ],
     "doctors": [
       {
-        "Instructor_ID": "D1",
+        "Instructor_ID": "cm...",
         "Instructor_Name": "Dr. Ahmed",
         "Department": "CS",
         "Day": "Sunday",
@@ -105,82 +107,37 @@ Open your browser to: **http://localhost:8000/docs**
       }
     ],
     "divisions": [
-      {
-        "Num_ID": "DIV1",
-        "Department": "CS",
-        "Major": "CS",
-        "Year": 1,
-        "StudentNum": 50
-      }
+      { "Num_ID": "CS-1-A", "Department": "CS", "Major": "CS", "Year": 1, "StudentNum": 50 }
     ]
   },
   "config": {
-    "population_size": 50,
-    "generations": 100,
-    "mutation_rate": 0.15,
-    "crossover_rate": 0.8
+    "time_limit_seconds": 300,
+    "max_days_per_year": 3,
+    "relax_if_infeasible": true
   }
 }
 ```
 
-**Data Fields:**
+**Notes on transforms (see [src/services/ai-integration.service.js](src/services/ai-integration.service.js)):**
+- `Room.Type`: `LECTURE_HALL → "Lecture"`, `LAB → "Lab"`.
+- `Course.Type`: `THEORETICAL → "Lecture"`, `PRACTICAL → "Lab"`.
+- `doctors`: one row per **APPROVED** `InstructorAvailability` entry (`Day`, `Start_Time`, `End_Time`).
+  Instructors with no approved availability fall back to all working days `09:00–17:00`.
 
-#### rooms
-| Field | Type | Description |
-|-------|------|-------------|
-| Room_ID | string | Unique room identifier |
-| Room | string | Room name |
-| Capacity | int | Student capacity |
-| Type | string | "Lab" or "Lecture" |
-
-#### courses
-| Field | Type | Description |
-|-------|------|-------------|
-| Course_ID | string | Unique course identifier |
-| Course_Name | string | Course name |
-| Department | string | Department code |
-| Major | string | Major code |
-| Days | int | Days per week |
-| Hours_per_day | int | Duration in hours |
-| Instructor_ID | string | Assigned instructor |
-| Year | int | Student year (1-4) |
-| Type | string | "Lab" or "Lecture" |
-
-#### doctors
-| Field | Type | Description |
-|-------|------|-------------|
-| Instructor_ID | string | Instructor identifier |
-| Instructor_Name | string | Full name |
-| Department | string | Department |
-| Day | string | Available day |
-| Start_Time | string | Availability start (HH:MM format) |
-| End_Time | string | Availability end (HH:MM format) |
-
-#### divisions
-| Field | Type | Description |
-|-------|------|-------------|
-| Num_ID | string | Division identifier |
-| Department | string | Department |
-| Major | string | Major |
-| Year | int | Student year |
-| StudentNum | int | Number of students |
-
-**Config Parameters (optional):**
-| Parameter | Type | Default | Range | Description |
-|-----------|------|---------|-------|-------------|
-| population_size | int | 50 | 10-500 | Number of schedules in population |
-| generations | int | 100 | 10-1000 | Number of GA iterations |
-| mutation_rate | float | 0.15 | 0-1 | Probability of mutation |
-| crossover_rate | float | 0.8 | 0-1 | Probability of crossover |
+**`config` (CPConfig):**
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| time_limit_seconds | int | 300 | Solver time budget (10-3600) |
+| max_days_per_year | int | 3 | Max teaching days per academic year (1-7) |
+| relax_if_infeasible | bool | true | Relax constraints if no solution is found |
 
 **Response:**
 ```json
 {
   "success": true,
-  "message": "Schedule generated successfully in 12.34s",
+  "message": "CP schedule generated ...",
   "total_assignments": 106,
-  "fitness_score": 373.70,
-  "generations_run": 100,
+  "solver_status": "OPTIMAL",
   "schedule": [
     {
       "day": "Monday",
@@ -191,7 +148,8 @@ Open your browser to: **http://localhost:8000/docs**
       "start_time": "2:00 PM",
       "end_time": "3:00 PM",
       "department": "IT",
-      "major": "IT"
+      "major": "IT",
+      "year": 1
     }
   ]
 }
@@ -199,73 +157,82 @@ Open your browser to: **http://localhost:8000/docs**
 
 ---
 
-## Integration with Node.js Backend
+## AI request: `POST {AI_API_URL}/sections/generate`
 
-```javascript
-// Example: Call from Node.js
-const response = await fetch('http://localhost:8000/schedule/generate', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    data: {
-      rooms: [
-        { Room_ID: "R1", Room: "Hall A", Capacity: 100, Type: "Lecture" },
-        { Room_ID: "R2", Room: "Lab 1", Capacity: 30, Type: "Lab" }
-      ],
-      courses: [
-        {
-          Course_ID: "CS101",
-          Course_Name: "Intro to Programming",
-          Department: "CS",
-          Major: "CS",
-          Days: 2,
-          Hours_per_day: 2,
-          Instructor_ID: "D1",
-          Year: 1,
-          Type: "Lecture"
-        }
-      ],
-      doctors: [
-        {
-          Instructor_ID: "D1",
-          Instructor_Name: "Dr. Ahmed",
-          Department: "CS",
-          Day: "Sunday",
-          Start_Time: "09:00",
-          End_Time: "17:00"
-        }
-      ],
-      divisions: [
-        { Num_ID: "DIV1", Department: "CS", Major: "CS", Year: 1, StudentNum: 50 }
-      ]
-    },
-    config: {
-      population_size: 50,
-      generations: 100
+To place practical-course sections in labs and theoretical-course sections in lecture rooms, the
+backend makes **two calls** (the AI picks rooms purely from the supplied `rooms` list: it prefers
+"lab"-typed rooms, otherwise falls back to all supplied rooms):
+
+1. Practical courses + only `LAB` rooms.
+2. Theoretical courses + only `LECTURE_HALL` rooms.
+
+The section input list is derived from courses × matching student groups (same department + year), with
+each group split into `ceil(studentCount / sectionSize)` sections (`sectionSize` = min capacity of the
+relevant room type, fallback `25`). `Instructor_Name` is left empty so the AI auto-assigns a TA.
+
+```json
+{
+  "data": {
+    "cp_schedule": [
+      { "Day": "Monday", "Course_Name": "Mathematics (0)", "Start_Time": "2:00 PM", "End_Time": "3:00 PM", "Instructor_Name": "Dr. Amany", "Assistant_Name": "", "Students": 219, "Room": "Terrace 8", "Major": "IT" }
+    ],
+    "rooms": [ { "Room_ID": "cm...", "Room": "Lab 1", "Capacity": 30, "Type": "Lab" } ],
+    "sections": [
+      { "Course_Name": "Programming Lab", "Major": "CS", "Division": "CS-1-A", "Section": "S-01", "Instructor_Name": "" }
+    ],
+    "assistants": [ { "Assistant_ID": "cm...", "Assistant_Name": "Eng. Mona" } ],
+    "divisions": [ { "Num_ID": "CS-1-A", "Department": "CS", "Major": "CS", "Year": 1, "StudentNum": 50 } ],
+    "courses": [ /* same shape as /cp/generate courses */ ],
+    "doctors": [ /* same shape as /cp/generate doctors */ ]
+  }
+}
+```
+
+**Response (section rows used by the backend are in `sections_schedule`):**
+```json
+{
+  "success": true,
+  "sections_schedule": [
+    {
+      "day": "Tuesday",
+      "course_name": "Programming Lab",
+      "instructor_name": "Dr. Ahmed",
+      "assistant_name": "Eng. Mona",
+      "students": 25,
+      "room": "Lab 1",
+      "start_time": "10:00 AM",
+      "end_time": "12:00 PM",
+      "major": "CS"
     }
-  })
-});
-
-const schedule = await response.json();
-console.log(`Generated ${schedule.total_assignments} assignments`);
+  ]
+}
 ```
+
+The backend saves each row as a `Session(type=SECTION)`: `assistant_name` resolves to a `TA` (and its
+linked `User` is set as `instructorId` when available); `UNASSIGNED` rows are stored with null day/time.
 
 ---
 
-## Project Structure
+## Running the AI service
 
+```bash
+cd AI
+pip install -r requirements.txt
+uvicorn src.main:app --host 0.0.0.0 --port 8000
 ```
-src/
-├── __init__.py       # Package init
-├── main.py           # FastAPI application
-├── models.py         # Pydantic schemas (with JSON input models)
-├── utils.py          # Time utilities
-├── data_loader.py    # JSON data loader
-└── scheduler.py      # Genetic Algorithm
-```
+
+Interactive docs: http://localhost:8000/docs
 
 ---
 
-## License
+## Out of scope / limitations
+
+- The AI section scheduler is a greedy, conflict-free assigner. It does NOT enforce the detailed TA
+  rules in `AI/Sections Instructions.txt` (4-day TA spread, 3h-consecutive / 5h-daily caps,
+  >50% supervision). Full compliance is AI-side work.
+- `Session` has no dedicated `taId`; the assigned TA is linked via `instructorId` (TA's `User`) when
+  available and kept in the session name otherwise.
+
+---
 
 Part of the Graduation Project - University Course Scheduling System

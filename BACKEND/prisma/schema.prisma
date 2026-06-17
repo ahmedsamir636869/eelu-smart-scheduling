@@ -229,3 +229,6 @@ enum ReportStatus {
   READ
 }
 
+generator erd {
+  provider = "prisma-erd-generator"
+}
