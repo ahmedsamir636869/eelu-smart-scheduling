@@ -30,11 +30,19 @@ class AIIntegrationService {
     }
   }
 
+  // Tags used to distinguish the two kinds of generated schedules.
+  static LECTURES_TAG = 'AI-CP-Lectures';
+  static SECTIONS_TAG = 'AI-CP-Sections';
+
   /**
-   * Generate schedule using AI
+   * Generate schedule(s) using AI, scoped to a campus + semester.
+   * Lectures and sections are stored as two SEPARATE Schedule records
+   * (tagged AI-CP-Lectures / AI-CP-Sections). Regenerating a type replaces
+   * the previous record for the same campus + semester.
    * @param {string} campusId - Campus ID to generate schedule for
    * @param {string} semester - Semester name (e.g., "Fall 2024")
-   * @returns {Promise<Object>} Generated schedule with sessions
+   * @param {('lectures'|'sections'|'all')} scheduleType - what to generate
+   * @returns {Promise<Object>} { campusId, semester, scheduleType, lectures, sections }
    */
   async generateSchedule(campusId, semester, scheduleType = 'all') {
     console.log('🔄 Starting AI schedule generation...');
@@ -45,7 +53,7 @@ class AIIntegrationService {
     const includeLectures = scheduleType === 'lectures' || scheduleType === 'all';
     const includeSections = scheduleType === 'sections' || scheduleType === 'all';
 
-    // 0. Check AI service health
+    // Check AI service health once up front
     console.log('🏥 Checking AI service health...');
     const isHealthy = await this.checkHealth();
     if (!isHealthy) {
@@ -53,7 +61,32 @@ class AIIntegrationService {
     }
     console.log('✅ AI service is healthy');
 
-    // 1. Fetch data from database (filtered by campus)
+    const result = {
+      campusId,
+      semester,
+      scheduleType,
+      lectures: null,
+      sections: null
+    };
+
+    if (includeLectures) {
+      result.lectures = await this.generateLecturesSchedule(campusId, semester);
+    }
+
+    if (includeSections) {
+      result.sections = await this.generateSectionsSchedule(campusId, semester);
+    }
+
+    console.log('🎉 Schedule generation completed!');
+    return result;
+  }
+
+  /**
+   * Fetch all scheduling inputs for a campus and validate completeness.
+   * @param {string} campusId
+   * @returns {Promise<{rooms:Array, courses:Array, instructors:Array, divisions:Array}>}
+   */
+  async fetchCampusData(campusId) {
     console.log('📊 Fetching data from database...');
     const rooms = await this.fetchRooms(campusId);
     const courses = await this.fetchCourses(campusId);
@@ -62,7 +95,6 @@ class AIIntegrationService {
 
     console.log(`Found: ${rooms.length} rooms, ${courses.length} courses, ${instructors.length} instructors, ${divisions.length} divisions`);
 
-    // Validate that we have sufficient data for this campus
     const missingData = [];
     if (rooms.length === 0) missingData.push('classrooms');
     if (courses.length === 0) missingData.push('courses');
@@ -78,7 +110,15 @@ class AIIntegrationService {
       );
     }
 
-    // 2. Transform to AI format
+    return { rooms, courses, instructors, divisions };
+  }
+
+  /**
+   * Run the CP lecture solver for the given campus data and return its rows.
+   * @param {{rooms:Array, courses:Array, instructors:Array, divisions:Array}} data
+   * @returns {Promise<Array<Object>>} CP lecture schedule rows (AI response shape)
+   */
+  async runCpGenerate({ rooms, courses, instructors, divisions }) {
     console.log('🔄 Transforming data for AI...');
     const aiData = {
       data: {
@@ -94,7 +134,6 @@ class AIIntegrationService {
       }
     };
 
-    // 3. Always run CP: lectures need it directly, sections need its slots as input
     console.log('🚀 Calling AI CP service at:', this.aiApiUrl);
     const response = await fetch(`${this.aiApiUrl}/cp/generate`, {
       method: 'POST',
@@ -111,36 +150,168 @@ class AIIntegrationService {
 
     const aiResult = await response.json();
     console.log('✅ CP returned', aiResult.total_assignments, 'lecture assignment(s)');
+    return aiResult.schedule || [];
+  }
 
-    // 4. Create a single Schedule record to hold lecture and/or section sessions
+  /**
+   * Delete any existing Schedule records (and their sessions) matching a
+   * campus + semester + tag, so regeneration replaces the previous result.
+   * Session.scheduleId has no cascade, so sessions are removed explicitly.
+   * @param {string} campusId
+   * @param {string} semester
+   * @param {string} generatedBy - schedule tag
+   */
+  async replaceExistingSchedules(campusId, semester, generatedBy) {
+    const existing = await prisma.schedule.findMany({
+      where: { campusId, semester, generatedBy },
+      select: { id: true }
+    });
+
+    if (!existing || existing.length === 0) {
+      return;
+    }
+
+    const ids = existing.map(s => s.id);
+    await prisma.session.deleteMany({ where: { scheduleId: { in: ids } } });
+    await prisma.schedule.deleteMany({ where: { id: { in: ids } } });
+    console.log(`🧹 Replaced ${ids.length} existing "${generatedBy}" schedule(s)`);
+  }
+
+  /**
+   * Generate and persist the LECTURES schedule for a campus + semester.
+   * Replaces any prior lectures schedule and any now-stale sections schedule.
+   * @returns {Promise<Object>} the complete lectures schedule
+   */
+  async generateLecturesSchedule(campusId, semester) {
+    const data = await this.fetchCampusData(campusId);
+    const cpRows = await this.runCpGenerate(data);
+
+    // Regenerating lectures invalidates the previously generated sections.
+    await this.replaceExistingSchedules(campusId, semester, AIIntegrationService.SECTIONS_TAG);
+    await this.replaceExistingSchedules(campusId, semester, AIIntegrationService.LECTURES_TAG);
+
     const schedule = await prisma.schedule.create({
       data: {
-        semester: semester,
-        generatedBy: 'AI-CP'
+        semester,
+        campusId,
+        generatedBy: AIIntegrationService.LECTURES_TAG
       }
     });
 
-    // 5. Save lecture sessions when requested
-    if (includeLectures) {
-      console.log('💾 Saving lecture sessions...');
-      await this.saveLectureSessions(aiResult.schedule || [], schedule, campusId);
+    console.log('💾 Saving lecture sessions...');
+    await this.saveLectureSessions(cpRows, schedule, campusId);
+
+    return this.getCompleteSchedule(schedule.id);
+  }
+
+  /**
+   * Find the most recent saved LECTURES schedule for a campus + semester,
+   * including the lecture sessions with the relations needed to rebuild CP rows.
+   * @returns {Promise<Object|null>}
+   */
+  async findLecturesSchedule(campusId, semester) {
+    return prisma.schedule.findFirst({
+      where: {
+        campusId,
+        semester,
+        generatedBy: AIIntegrationService.LECTURES_TAG
+      },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        sessions: {
+          where: { type: 'LECTURE' },
+          include: {
+            course: { include: { department: true } },
+            classroom: true,
+            instructor: true
+          }
+        }
+      }
+    });
+  }
+
+  /**
+   * Format a stored DateTime into the AI "h:mm AM/PM" clock string used by CP rows.
+   * @param {Date|string|null} value
+   * @returns {string}
+   */
+  formatTimeForCp(value) {
+    if (!value) return '';
+    const date = new Date(value);
+    let hours = date.getHours();
+    const minutes = date.getMinutes();
+    const period = hours >= 12 ? 'PM' : 'AM';
+    hours %= 12;
+    if (hours === 0) hours = 12;
+    return `${hours}:${String(minutes).padStart(2, '0')} ${period}`;
+  }
+
+  /**
+   * Convert saved LECTURE sessions into CP lecture rows (AI response shape)
+   * so the section scheduler can build on the persisted lectures schedule
+   * instead of re-running the CP solver.
+   * @param {Array<Object>} sessions - lecture sessions (with course/department, classroom, instructor)
+   * @returns {Array<Object>} CP rows
+   */
+  sessionsToCpRows(sessions) {
+    const dayMap = {
+      SATURDAY: 'Saturday',
+      SUNDAY: 'Sunday',
+      MONDAY: 'Monday',
+      TUESDAY: 'Tuesday',
+      WEDNESDAY: 'Wednesday',
+      THURSDAY: 'Thursday'
+    };
+
+    return (sessions || []).map(session => ({
+      day: session.day ? (dayMap[session.day] || '') : '',
+      course_name: session.course?.name || session.name || '',
+      start_time: this.formatTimeForCp(session.startTime),
+      end_time: this.formatTimeForCp(session.endTime),
+      instructor_name: session.instructor?.name || '',
+      students: session.studentCount ?? '',
+      room: session.classroom?.name || '',
+      major: session.course?.department?.code || ''
+    }));
+  }
+
+  /**
+   * Generate and persist the SECTIONS schedule for a campus + semester.
+   * Sections are built on top of the saved LECTURES schedule: if none exists
+   * for this scope, a 422-style error is thrown so the caller can require the
+   * user to generate lectures first. Replaces any prior sections schedule.
+   * @returns {Promise<Object>} the complete sections schedule
+   */
+  async generateSectionsSchedule(campusId, semester) {
+    const lecturesSchedule = await this.findLecturesSchedule(campusId, semester);
+    if (!lecturesSchedule) {
+      const error = new Error(
+        'Generate the lectures schedule first before generating sections.'
+      );
+      error.status = 422;
+      error.code = 'LECTURES_SCHEDULE_REQUIRED';
+      throw error;
     }
 
-    // 6. Generate and save section sessions when requested
-    if (includeSections) {
-      console.log('💾 Generating and saving section sessions...');
-      const assistants = await this.fetchAssistants(campusId);
-      const sectionRows = await this.generateSections(aiResult.schedule || [], {
-        rooms,
-        courses,
-        divisions,
-        instructors,
-        assistants
-      });
-      await this.saveSectionsToDatabase(sectionRows, schedule, campusId);
-    }
+    const cpRows = this.sessionsToCpRows(lecturesSchedule.sessions);
+    const data = await this.fetchCampusData(campusId);
 
-    console.log('🎉 Schedule generation completed!');
+    console.log('💾 Generating and saving section sessions...');
+    const assistants = await this.fetchAssistants(campusId);
+    const sectionRows = await this.generateSections(cpRows, { ...data, assistants });
+
+    await this.replaceExistingSchedules(campusId, semester, AIIntegrationService.SECTIONS_TAG);
+
+    const schedule = await prisma.schedule.create({
+      data: {
+        semester,
+        campusId,
+        generatedBy: AIIntegrationService.SECTIONS_TAG
+      }
+    });
+
+    await this.saveSectionsToDatabase(sectionRows, schedule, campusId);
+
     return this.getCompleteSchedule(schedule.id);
   }
 
@@ -217,7 +388,7 @@ class AIIntegrationService {
    * @param {string} campusId - Campus ID to filter TAs by
    */
   async fetchAssistants(campusId) {
-    return prisma.ta.findMany({
+    return prisma.tA.findMany({
       where: {
         department: {
           college: {
@@ -843,7 +1014,7 @@ class AIIntegrationService {
         let instructorId;
         const assistantName = (item.assistant_name || '').trim();
         if (assistantName) {
-          const ta = await prisma.ta.findFirst({
+          const ta = await prisma.tA.findFirst({
             where: {
               name: { equals: assistantName, mode: 'insensitive' },
               department: { college: { campusId } }

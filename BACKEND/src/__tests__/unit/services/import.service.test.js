@@ -31,9 +31,13 @@ jest.mock('../../../config/db', () => ({
     },
     instructor: {
       findFirst: jest.fn(),
+      findUnique: jest.fn(),
       findMany: jest.fn(),
       update: jest.fn(),
       create: jest.fn(),
+    },
+    instructorAvailability: {
+      upsert: jest.fn(),
     },
     course: {
       findUnique: jest.fn(),
@@ -172,13 +176,14 @@ describe('import.service', () => {
       expect(result.errors).toEqual([{ row, error: 'Missing required field: Name or Instructor_ID' }]);
     });
 
-    test('creates instructor assignment with parsed schedule fields', async () => {
+    test('creates instructor (by email) and records APPROVED availability', async () => {
       const department = { id: 'dept-1', name: 'CS', college: { name: 'Computing' } };
       prisma.department.findFirst.mockResolvedValue(department);
       prisma.user.findUnique.mockResolvedValue({ id: 'user-1' });
-      prisma.instructor.findFirst.mockResolvedValue(null);
+      prisma.instructor.findUnique.mockResolvedValue(null);
       const mockInstructor = { id: 'inst-1', name: 'Dr Ahmed' };
       prisma.instructor.create.mockResolvedValue(mockInstructor);
+      prisma.instructorAvailability.upsert.mockResolvedValue({ id: 'avail-1' });
 
       const result = await importInstructors([
         {
@@ -194,10 +199,20 @@ describe('import.service', () => {
       expect(prisma.instructor.create).toHaveBeenCalledWith({
         data: {
           name: 'Dr Ahmed',
+          email: 'dr@test.com',
+          userId: 'user-1',
           departmentId: 'dept-1',
+        },
+      });
+      expect(prisma.instructorAvailability.upsert).toHaveBeenCalledWith({
+        where: { instructorId_day: { instructorId: 'inst-1', day: 'MONDAY' } },
+        update: { startTime: expect.any(Date), endTime: expect.any(Date), status: 'APPROVED' },
+        create: {
+          instructorId: 'inst-1',
           day: 'MONDAY',
           startTime: expect.any(Date),
           endTime: expect.any(Date),
+          status: 'APPROVED',
         },
       });
       expect(result.success[0]).toEqual({
@@ -211,6 +226,24 @@ describe('import.service', () => {
           endTime: '10:00 AM',
         },
       });
+    });
+
+    test('reuses an existing user instead of creating a duplicate email', async () => {
+      const department = { id: 'dept-1', name: 'CS', college: { name: 'Computing' } };
+      prisma.department.findFirst.mockResolvedValue(department);
+      prisma.user.findUnique.mockResolvedValue({ id: 'user-1' });
+      prisma.instructor.findUnique.mockResolvedValue({ id: 'inst-1', userId: 'user-1' });
+      prisma.instructor.update.mockResolvedValue({ id: 'inst-1', name: 'Dr Ahmed' });
+      prisma.instructorAvailability.upsert.mockResolvedValue({ id: 'avail-1' });
+
+      const result = await importInstructors([
+        { Name: 'Dr Ahmed', Department: 'CS', Day: 'Tuesday', Start_Time: '9:00 AM', End_Time: '11:00 AM' },
+      ]);
+
+      expect(prisma.user.create).not.toHaveBeenCalled();
+      expect(prisma.instructor.create).not.toHaveBeenCalled();
+      expect(prisma.instructor.update).toHaveBeenCalled();
+      expect(result.success[0].action).toBe('updated');
     });
   });
 

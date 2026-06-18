@@ -61,14 +61,11 @@ export default function GeneratePage() {
 
   const checkLecturesSchedule = async () => {
     try {
-      // Check if lectures schedule exists by fetching schedules
-      const schedules = await scheduleApi.getAll()
-      const lecturesSchedule = Array.isArray(schedules)
-        ? schedules.find((s: any) =>
-          s.semester === semester && s.generatedBy === 'AI-GA-Lectures'
-        )
-        : null
-      setHasLecturesSchedule(!!lecturesSchedule)
+      // Lectures schedule is tagged AI-CP-Lectures and scoped to campus + semester
+      const schedules = await scheduleApi.getAll(selectedBranch, semester)
+      const exists = Array.isArray(schedules)
+        && schedules.some((s: any) => s.generatedBy === 'AI-CP-Lectures')
+      setHasLecturesSchedule(exists)
     } catch (err) {
       // If check fails, assume no lectures schedule
       console.warn('Failed to check lectures schedule:', err)
@@ -85,49 +82,31 @@ export default function GeneratePage() {
     setLoading(true)
     setLoadingType(scheduleType)
     setError('')
-    setGeneratedSchedule(null)
 
     try {
-      const result = await scheduleApi.generate(selectedBranch, semester, scheduleType)
+      await scheduleApi.generate(selectedBranch, semester, scheduleType)
 
-      // The result should already contain sessions, but fetch full details if needed
-      if (result && result.id) {
-        try {
-          const fullSchedule = await scheduleApi.getById(result.id)
-          setGeneratedSchedule(fullSchedule)
-        } catch (fetchErr) {
-          // If fetching fails, use the result we got (it should have sessions)
-          setGeneratedSchedule(result)
-        }
-      } else if (result && result.schedule) {
-        // Handle case where response wraps schedule in 'schedule' property
-        setGeneratedSchedule(result.schedule)
-      } else {
-        setGeneratedSchedule(result)
-      }
-
-      // Refresh lectures schedule check
       if (scheduleType === 'lectures') {
         setHasLecturesSchedule(true)
-      } else {
-        await checkLecturesSchedule()
-        // If sections were generated, refresh the schedule to show both lectures and sections
-        if (result && result.id) {
-          try {
-            const fullSchedule = await scheduleApi.getById(result.id)
-            setGeneratedSchedule(fullSchedule)
-          } catch (fetchErr) {
-            console.warn('Failed to refresh schedule:', fetchErr)
-          }
-        }
       }
+
+      // Lectures and sections are stored as separate records; rebuild the
+      // merged view (and refresh the lectures-first guard) from the backend.
+      await checkLecturesSchedule()
+      await fetchCurrentSchedule()
     } catch (err) {
-      const typeLabel = scheduleType === 'lectures' ? 'Lectures' : 'Sections'
-      const errorMessage =
-        err instanceof ApiError
-          ? err.message
-          : `Failed to generate ${typeLabel.toLowerCase()} schedule. Please try again.`
-      setError(errorMessage)
+      // 422 = sections requested before a lectures schedule exists
+      if (err instanceof ApiError && err.status === 422) {
+        setHasLecturesSchedule(false)
+        setError(err.message || 'Generate the lectures schedule first before generating sections.')
+      } else {
+        const typeLabel = scheduleType === 'lectures' ? 'Lectures' : 'Sections'
+        setError(
+          err instanceof ApiError
+            ? err.message
+            : `Failed to generate ${typeLabel.toLowerCase()} schedule. Please try again.`
+        )
+      }
     } finally {
       setLoading(false)
       setLoadingType(null)
@@ -141,27 +120,37 @@ export default function GeneratePage() {
     }
   }, [selectedBranch, semester])
 
+  // Merge the lectures and sections records into a single schedule object so
+  // GeneratedScheduleView can show a combined timetable (it filters by type).
+  const buildMergedSchedule = (lectures: any, sections: any) => {
+    const base = lectures || sections
+    if (!base) return null
+    return {
+      ...base,
+      sessions: [
+        ...(lectures?.sessions || []),
+        ...(sections?.sessions || []),
+      ],
+    }
+  }
+
   const fetchCurrentSchedule = async () => {
     try {
-      const schedules = await scheduleApi.getAll()
-      const currentSchedule = Array.isArray(schedules)
-        ? schedules.find((s: any) =>
-          s.semester === semester &&
-          (s.generatedBy === 'AI-GA-Lectures' || s.generatedBy === 'AI-GA' || s.generatedBy === 'AI-GA-Sections')
-        )
-        : null
+      const schedules = await scheduleApi.getAll(selectedBranch, semester)
+      const list = Array.isArray(schedules) ? schedules : []
+      const lecturesMeta = list.find((s: any) => s.generatedBy === 'AI-CP-Lectures')
+      const sectionsMeta = list.find((s: any) => s.generatedBy === 'AI-CP-Sections')
 
-      if (currentSchedule && currentSchedule.id) {
-        try {
-          const fullSchedule = await scheduleApi.getById(currentSchedule.id)
-          setGeneratedSchedule(fullSchedule)
-        } catch (fetchErr) {
-          // Use the schedule from list if getById fails
-          setGeneratedSchedule(currentSchedule)
-        }
-      } else {
-        setGeneratedSchedule(null)
-      }
+      const [lectures, sections] = await Promise.all([
+        lecturesMeta?.id
+          ? scheduleApi.getById(lecturesMeta.id).catch(() => lecturesMeta)
+          : Promise.resolve(null),
+        sectionsMeta?.id
+          ? scheduleApi.getById(sectionsMeta.id).catch(() => sectionsMeta)
+          : Promise.resolve(null),
+      ])
+
+      setGeneratedSchedule(buildMergedSchedule(lectures, sections))
     } catch (err) {
       console.warn('Failed to fetch current schedule:', err)
       setGeneratedSchedule(null)

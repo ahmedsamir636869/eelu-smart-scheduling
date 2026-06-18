@@ -618,103 +618,89 @@ const importInstructors = async (data, campusId) => {
       const startTime = parseTimeToDateTime(startTimeStr);
       const endTime = parseTimeToDateTime(endTimeStr);
 
-      // Create or find User account for the instructor (for authentication)
-      let user = null;
-      if (email) {
-        user = await prisma.user.findUnique({
-          where: { email: email }
-        });
+      // Name is required to build the User/Instructor records below.
+      if (!name) {
+        results.errors.push({ row, error: 'Missing required field: Name' });
+        continue;
       }
 
-      // If no email, try to find by name
-      if (!user && name) {
-        user = await prisma.user.findFirst({
-          where: {
-            name: { contains: name, mode: 'insensitive' },
-            roles: { has: 'INSTRUCTOR' }
-          }
-        });
-      }
+      // Resolve a stable email for the instructor. Both User and Instructor now
+      // require a unique email, so reuse one address (real or synthetic) for the
+      // same person across the file's multiple time-slot rows.
+      const instructorEmail = (email && String(email).trim())
+        ? String(email).trim().toLowerCase()
+        : `${name.trim().toLowerCase().replace(/\s+/g, '.')}@example.com`;
 
-      // Create User if doesn't exist
+      // Upsert the User account (idempotent across repeated rows and re-imports)
+      let user = await prisma.user.findUnique({ where: { email: instructorEmail } });
       if (!user) {
-        const defaultPassword = 'changeme123';
         const bcrypt = require('bcryptjs');
-        const hashedPassword = await bcrypt.hash(defaultPassword, 10);
-
+        const hashedPassword = await bcrypt.hash('changeme123', 10);
         user = await prisma.user.create({
           data: {
             name: name.trim(),
-            email: email || `${name.toLowerCase().replace(/\s+/g, '.')}@example.com`,
+            email: instructorEmail,
             password: hashedPassword,
             roles: ['INSTRUCTOR']
           }
         });
       }
 
-      // Check if instructor assignment already exists (same name, department, day, and time)
-      const existingInstructor = await prisma.instructor.findFirst({
-        where: {
-          name: { equals: name.trim(), mode: 'insensitive' },
-          departmentId: department.id,
-          day: day,
-          startTime: startTime,
-          endTime: endTime
-        }
+      // Upsert the Instructor record (email is required + unique; link the User)
+      const existingInstructor = await prisma.instructor.findUnique({
+        where: { email: instructorEmail }
       });
 
       let instructor;
       if (existingInstructor) {
-        // Update existing assignment
         instructor = await prisma.instructor.update({
           where: { id: existingInstructor.id },
           data: {
             name: name.trim(),
             departmentId: department.id,
-            day: day,
-            startTime: startTime,
-            endTime: endTime
+            userId: existingInstructor.userId || user.id
           }
         });
-        results.success.push({ 
-          action: 'updated', 
-          instructor: {
-            id: instructor.id,
-            name: instructor.name,
-            department: department.name,
-            day: day,
-            startTime: startTimeStr,
-            endTime: endTimeStr
-          }
-        });
-        console.log(`✓ Updated instructor assignment: ${name} - ${day} ${startTimeStr}-${endTimeStr} in ${department.name}`);
       } else {
-        // Create new Instructor record with schedule assignment
-        // Each row represents a time slot assignment for the instructor
         instructor = await prisma.instructor.create({
           data: {
             name: name.trim(),
-            departmentId: department.id,
-            day: day,
-            startTime: startTime,
-            endTime: endTime
+            email: instructorEmail,
+            userId: user.id,
+            departmentId: department.id
           }
         });
-
-        results.success.push({ 
-          action: 'created', 
-          instructor: {
-            id: instructor.id,
-            name: instructor.name,
-            department: department.name,
-            day: day,
-            startTime: startTimeStr,
-            endTime: endTimeStr
-          }
-        });
-        
-        console.log(`✓ Created instructor assignment: ${name} - ${day} ${startTimeStr}-${endTimeStr} in ${department.name}`);
       }
+
+      // Day/time now live on InstructorAvailability (unique per [instructorId, day]).
+      // Imported slots are marked APPROVED so schedule generation can use them.
+      if (day && startTime && endTime) {
+        await prisma.instructorAvailability.upsert({
+          where: { instructorId_day: { instructorId: instructor.id, day } },
+          update: { startTime, endTime, status: 'APPROVED' },
+          create: {
+            instructorId: instructor.id,
+            day,
+            startTime,
+            endTime,
+            status: 'APPROVED'
+          }
+        });
+      }
+
+      results.success.push({
+        action: existingInstructor ? 'updated' : 'created',
+        instructor: {
+          id: instructor.id,
+          name: instructor.name,
+          department: department.name,
+          day: day,
+          startTime: startTimeStr,
+          endTime: endTimeStr
+        }
+      });
+
+      console.log(`✓ ${existingInstructor ? 'Updated' : 'Created'} instructor: ${name}${day ? ` - ${day} ${startTimeStr}-${endTimeStr}` : ''} in ${department.name}`);
     } catch (error) {
       results.errors.push({ row, error: error.message });
       console.error('Error importing instructor:', error.message, row);

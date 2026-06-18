@@ -34,6 +34,7 @@ model Campus {
   city       String
   classrooms Classroom[]
   colleges   College[]   @relation("CampusColleges")
+  schedules Schedule[]
 }
 
 model College {
@@ -162,7 +163,9 @@ model Schedule {
   semester    String
   generatedBy String
   createdAt   DateTime  @default(now())
+  campusId    String?
   sessions    Session[]
+  campus      Campus?   @relation(fields: [campusId], references: [id])
 }
 
 model Session {

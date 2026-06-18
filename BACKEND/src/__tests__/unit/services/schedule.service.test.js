@@ -52,13 +52,14 @@ describe('schedule.service', () => {
   });
 
   describe('getAllSchedules', () => {
-    test('fetches schedules ordered by newest first', async () => {
+    test('fetches schedules ordered by newest first with no filters', async () => {
       const mockSchedules = [{ id: 'schedule-2' }, { id: 'schedule-1' }];
       prisma.schedule.findMany.mockResolvedValue(mockSchedules);
 
       const result = await getAllSchedules();
 
       expect(prisma.schedule.findMany).toHaveBeenCalledWith({
+        where: {},
         include: {
           sessions: {
             include: {
@@ -77,6 +78,18 @@ describe('schedule.service', () => {
         orderBy: { createdAt: 'desc' },
       });
       expect(result).toEqual(mockSchedules);
+    });
+
+    test('scopes the query by campusId and semester when provided', async () => {
+      prisma.schedule.findMany.mockResolvedValue([]);
+
+      await getAllSchedules({ campusId: 'campus-1', semester: 'Fall 2026' });
+
+      expect(prisma.schedule.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { campusId: 'campus-1', semester: 'Fall 2026' },
+        })
+      );
     });
   });
 });

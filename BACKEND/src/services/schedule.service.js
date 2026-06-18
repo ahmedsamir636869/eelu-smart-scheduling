@@ -49,10 +49,16 @@ const getScheduleById = async (scheduleId) => {
 };
 
 /**
- * Get all schedules
+ * Get all schedules, optionally scoped by campus and/or semester.
+ * @param {{ campusId?: string, semester?: string }} [filters]
  */
-const getAllSchedules = async () => {
+const getAllSchedules = async ({ campusId, semester } = {}) => {
+  const where = {};
+  if (campusId) where.campusId = campusId;
+  if (semester) where.semester = semester;
+
   const schedules = await prisma.schedule.findMany({
+    where,
     include: {
       sessions: {
         include: {

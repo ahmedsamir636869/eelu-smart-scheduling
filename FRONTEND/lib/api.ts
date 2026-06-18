@@ -201,8 +201,12 @@ export const scheduleApi = {
     return extractData(response, 'schedule') || response
   },
 
-  getAll: async () => {
-    const response = await api.get<any>('/schedule')
+  getAll: async (campusId?: string, semester?: string) => {
+    const params = new URLSearchParams()
+    if (campusId) params.set('campusId', campusId)
+    if (semester) params.set('semester', semester)
+    const query = params.toString()
+    const response = await api.get<any>(`/schedule${query ? `?${query}` : ''}`)
     return extractData(response, 'schedules') || []
   },
 

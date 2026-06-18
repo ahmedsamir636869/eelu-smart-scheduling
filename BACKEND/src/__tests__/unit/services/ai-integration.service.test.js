@@ -21,7 +21,7 @@ jest.mock('../../../config/db', () => ({
     studentGroup: {
       findMany: jest.fn(),
     },
-    ta: {
+    tA: {
       findMany: jest.fn(),
       findFirst: jest.fn(),
     },
@@ -31,12 +31,16 @@ jest.mock('../../../config/db', () => ({
     schedule: {
       create: jest.fn(),
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
+      findMany: jest.fn(),
+      deleteMany: jest.fn(),
     },
     user: {
       findFirst: jest.fn(),
     },
     session: {
       create: jest.fn(),
+      deleteMany: jest.fn(),
     },
   },
 }));
@@ -147,11 +151,11 @@ describe('AIIntegrationService', () => {
     });
 
     test('fetchAssistants fetches TAs through department college campus relation', async () => {
-      prisma.ta.findMany.mockResolvedValue([{ id: 'ta-1' }]);
+      prisma.tA.findMany.mockResolvedValue([{ id: 'ta-1' }]);
 
       await service.fetchAssistants('campus-1');
 
-      expect(prisma.ta.findMany).toHaveBeenCalledWith({
+      expect(prisma.tA.findMany).toHaveBeenCalledWith({
         where: {
           department: {
             college: { campusId: 'campus-1' },
@@ -451,6 +455,10 @@ describe('AIIntegrationService', () => {
       jest.spyOn(service, 'fetchAssistants').mockResolvedValue([]);
       prisma.schedule.create.mockResolvedValue({ id: 'sch-1' });
       prisma.schedule.findUnique.mockResolvedValue({ id: 'sch-1', sessions: [] });
+      prisma.schedule.findFirst.mockResolvedValue({ id: 'lec-1', sessions: [] });
+      prisma.schedule.findMany.mockResolvedValue([]);
+      prisma.schedule.deleteMany.mockResolvedValue({ count: 0 });
+      prisma.session.deleteMany.mockResolvedValue({ count: 0 });
       fetch.mockResolvedValue({
         ok: true,
         json: async () => ({
@@ -486,9 +494,23 @@ describe('AIIntegrationService', () => {
       expect(saveLec).not.toHaveBeenCalled();
       expect(genSec).toHaveBeenCalled();
       expect(saveSec).toHaveBeenCalledWith([{ course_name: 'C' }], { id: 'sch-1' }, 'campus-1');
+      expect(prisma.schedule.create).toHaveBeenCalledWith({
+        data: { semester: 'Fall', campusId: 'campus-1', generatedBy: 'AI-CP-Sections' },
+      });
     });
 
-    test('all (default): saves lectures and sections under one schedule', async () => {
+    test('lectures: creates a campus-scoped AI-CP-Lectures record', async () => {
+      stubData();
+      jest.spyOn(service, 'saveLectureSessions').mockResolvedValue([]);
+
+      await service.generateSchedule('campus-1', 'Fall', 'lectures');
+
+      expect(prisma.schedule.create).toHaveBeenCalledWith({
+        data: { semester: 'Fall', campusId: 'campus-1', generatedBy: 'AI-CP-Lectures' },
+      });
+    });
+
+    test('all (default): saves lectures and sections as two separate schedules', async () => {
       stubData();
       const saveLec = jest.spyOn(service, 'saveLectureSessions').mockResolvedValue([{ id: 'l' }]);
       const genSec = jest.spyOn(service, 'generateSections').mockResolvedValue([{ course_name: 'C' }]);
@@ -496,10 +518,111 @@ describe('AIIntegrationService', () => {
 
       await service.generateSchedule('campus-1', 'Fall');
 
-      expect(prisma.schedule.create).toHaveBeenCalledTimes(1);
+      expect(prisma.schedule.create).toHaveBeenCalledTimes(2);
       expect(saveLec).toHaveBeenCalled();
       expect(genSec).toHaveBeenCalled();
       expect(saveSec).toHaveBeenCalled();
+    });
+
+    test('sections: throws a 422-style error when no lectures schedule exists', async () => {
+      stubData();
+      prisma.schedule.findFirst.mockResolvedValue(null);
+      const genSec = jest.spyOn(service, 'generateSections').mockResolvedValue([]);
+
+      await expect(service.generateSchedule('campus-1', 'Fall', 'sections')).rejects.toMatchObject({
+        status: 422,
+        code: 'LECTURES_SCHEDULE_REQUIRED',
+      });
+      expect(genSec).not.toHaveBeenCalled();
+      expect(prisma.schedule.create).not.toHaveBeenCalled();
+    });
+
+    test('sections: builds CP rows from the saved lectures schedule', async () => {
+      stubData();
+      prisma.schedule.findFirst.mockResolvedValue({
+        id: 'lec-1',
+        sessions: [
+          {
+            day: 'MONDAY',
+            name: 'C',
+            startTime: new Date('2026-01-01T09:00:00'),
+            endTime: new Date('2026-01-01T10:00:00'),
+            studentCount: 30,
+            course: { name: 'C', department: { code: 'CS' } },
+            classroom: { name: 'r' },
+            instructor: { name: 'Dr' },
+          },
+        ],
+      });
+      const genSec = jest.spyOn(service, 'generateSections').mockResolvedValue([]);
+      jest.spyOn(service, 'saveSectionsToDatabase').mockResolvedValue([]);
+
+      await service.generateSchedule('campus-1', 'Fall', 'sections');
+
+      const cpRows = genSec.mock.calls[0][0];
+      expect(cpRows).toEqual([
+        {
+          day: 'Monday',
+          course_name: 'C',
+          start_time: '9:00 AM',
+          end_time: '10:00 AM',
+          instructor_name: 'Dr',
+          students: 30,
+          room: 'r',
+          major: 'CS',
+        },
+      ]);
+    });
+  });
+
+  describe('sessionsToCpRows', () => {
+    test('maps stored lecture sessions to CP row shape', () => {
+      const rows = service.sessionsToCpRows([
+        {
+          day: 'WEDNESDAY',
+          name: 'fallback',
+          startTime: new Date('2026-01-01T13:30:00'),
+          endTime: new Date('2026-01-01T15:00:00'),
+          studentCount: 12,
+          course: { name: 'Networks', department: { code: 'IT' } },
+          classroom: { name: 'Lab-2' },
+          instructor: { name: 'Dr Sara' },
+        },
+      ]);
+
+      expect(rows).toEqual([
+        {
+          day: 'Wednesday',
+          course_name: 'Networks',
+          start_time: '1:30 PM',
+          end_time: '3:00 PM',
+          instructor_name: 'Dr Sara',
+          students: 12,
+          room: 'Lab-2',
+          major: 'IT',
+        },
+      ]);
+    });
+
+    test('handles missing relations and empty input gracefully', () => {
+      expect(service.sessionsToCpRows([])).toEqual([]);
+      expect(service.sessionsToCpRows(undefined)).toEqual([]);
+
+      const rows = service.sessionsToCpRows([
+        { day: null, name: 'Solo', startTime: null, endTime: null, studentCount: 0 },
+      ]);
+      expect(rows).toEqual([
+        {
+          day: '',
+          course_name: 'Solo',
+          start_time: '',
+          end_time: '',
+          instructor_name: '',
+          students: 0,
+          room: '',
+          major: '',
+        },
+      ]);
     });
   });
 
@@ -577,7 +700,7 @@ describe('AIIntegrationService', () => {
   describe('saveSectionsToDatabase', () => {
     test('creates SECTION sessions linking the TA user and classroom', async () => {
       prisma.course.findFirst.mockResolvedValue({ id: 'course-1' });
-      prisma.ta.findFirst.mockResolvedValue({ id: 'ta-1', name: 'Eng Mona', userId: 'user-9' });
+      prisma.tA.findFirst.mockResolvedValue({ id: 'ta-1', name: 'Eng Mona', userId: 'user-9' });
       prisma.classroom.findFirst.mockResolvedValue({ id: 'lab-1' });
       prisma.session.create.mockResolvedValue({ id: 'sec-1' });
 
@@ -596,7 +719,7 @@ describe('AIIntegrationService', () => {
 
       const result = await service.saveSectionsToDatabase(rows, { id: 'schedule-1' }, 'campus-1');
 
-      expect(prisma.ta.findFirst).toHaveBeenCalledWith({
+      expect(prisma.tA.findFirst).toHaveBeenCalledWith({
         where: {
           name: { equals: 'Eng Mona', mode: 'insensitive' },
           department: { college: { campusId: 'campus-1' } },
@@ -621,7 +744,7 @@ describe('AIIntegrationService', () => {
 
     test('handles UNASSIGNED rows with null day/time and missing TA user', async () => {
       prisma.course.findFirst.mockResolvedValue({ id: 'course-2' });
-      prisma.ta.findFirst.mockResolvedValue({ id: 'ta-2', name: 'Eng Sara', userId: null });
+      prisma.tA.findFirst.mockResolvedValue({ id: 'ta-2', name: 'Eng Sara', userId: null });
       prisma.classroom.findFirst.mockResolvedValue(null);
       prisma.session.create.mockResolvedValue({ id: 'sec-2' });
 

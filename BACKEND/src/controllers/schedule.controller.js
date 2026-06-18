@@ -28,9 +28,15 @@ const generateScheduleController = async (req, res) => {
   } catch (error) {
     console.error('❌ Error generating schedule:', error.message);
 
-    return res.status(STATUS_MESSAGES.INTERNAL_SERVER_ERROR).json({
+    // Service throws a 422 (with a code) when sections are requested before a
+    // lectures schedule exists; surface it so the frontend can guide the user.
+    const statusCode = error.status || STATUS_MESSAGES.INTERNAL_SERVER_ERROR;
+    const isExpected = statusCode !== STATUS_MESSAGES.INTERNAL_SERVER_ERROR;
+
+    return res.status(statusCode).json({
       success: false,
-      message: 'Failed to generate schedule',
+      message: isExpected ? error.message : 'Failed to generate schedule',
+      code: error.code,
       error: error.message
     });
   }
@@ -74,7 +80,8 @@ const getScheduleByIdController = async (req, res) => {
  */
 const getAllSchedulesController = async (req, res) => {
   try {
-    const schedules = await getAllSchedules();
+    const { campusId, semester } = req.query;
+    const schedules = await getAllSchedules({ campusId, semester });
 
     return res.status(STATUS_MESSAGES.OK).json({
       success: true,
