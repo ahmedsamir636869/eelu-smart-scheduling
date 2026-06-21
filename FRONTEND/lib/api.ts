@@ -191,14 +191,12 @@ export const api = {
 // Schedule-specific API functions
 export const scheduleApi = {
   generate: async (campusId: string, semester: string, scheduleType?: 'lectures' | 'sections' | 'all') => {
+    // request() already calls extractData() internally — response IS the unwrapped schedule object
     const response = await api.post<any>(
       '/schedule/generate',
       { campusId, semester, scheduleType: scheduleType || 'all' }
     )
-    // Backend returns { success, message, schedule }
-    // extractData will extract the schedule object
-    // Schedule object has: { id, semester, generatedBy, sessions, totalSessions }
-    return extractData(response, 'schedule') || response
+    return response
   },
 
   getAll: async (campusId?: string, semester?: string) => {
@@ -206,13 +204,15 @@ export const scheduleApi = {
     if (campusId) params.set('campusId', campusId)
     if (semester) params.set('semester', semester)
     const query = params.toString()
+    // request() already calls extractData() internally — response IS the unwrapped array
     const response = await api.get<any>(`/schedule${query ? `?${query}` : ''}`)
-    return extractData(response, 'schedules') || []
+    return Array.isArray(response) ? response : []
   },
 
   getById: async (id: string) => {
+    // request() already calls extractData() internally — response IS the unwrapped schedule object
     const response = await api.get<any>(`/schedule/${id}`)
-    return extractData(response, 'schedule')
+    return response
   },
 }
 

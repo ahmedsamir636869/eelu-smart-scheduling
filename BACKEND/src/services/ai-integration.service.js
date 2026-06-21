@@ -939,7 +939,8 @@ class AIIntegrationService {
                 code: true,
                 name: true,
                 type: true,
-                year: true
+                year: true,
+                college: { select: { id: true, name: true } }
               }
             },
             instructor: {
@@ -1076,9 +1077,10 @@ class AIIntegrationService {
    * @returns {Date}
    */
   parseTime(timeString) {
-    const today = new Date();
-    today.setSeconds(0);
-    today.setMilliseconds(0);
+    // Fixed reference date (local midnight) — prevents the stored DateTime's
+    // date portion from shifting every day. Using local time (not UTC) keeps
+    // this consistent with formatTimeForCp() which reads via getHours().
+    const today = new Date(1970, 0, 1, 0, 0, 0, 0);
 
     // Check if it's 12-hour format with AM/PM
     if (timeString.includes('AM') || timeString.includes('PM')) {

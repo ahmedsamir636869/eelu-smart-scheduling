@@ -109,10 +109,6 @@ class SectionScheduler:
                 str(sec[sec_name_col]).strip() if sec_name_col else f"Section_{i + 1}"
             )
 
-            section_assistant_name = normalize_instructor_name(
-                assistant_pool[i % len(assistant_pool)]
-            )
-
             if (
                 sec_inst_col
                 and pd.notna(sec[sec_inst_col])
@@ -176,7 +172,7 @@ class SectionScheduler:
                             if course_name
                             else str(slot["Course_Name"]),
                             "Instructor_Name": section_instructor_name,
-                            "Assistant_Name": section_assistant_name,
+                            "Assistant_Name": section_assistant,
                             "Students": students,
                             "Room": room,
                             "Start_Time": start_time,
@@ -201,7 +197,7 @@ class SectionScheduler:
                         "Day": "UNASSIGNED",
                         "Course_Name": course_name,
                         "Instructor_Name": section_instructor_name,
-                        "Assistant_Name": section_assistant_name,
+                        "Assistant_Name": section_assistant,
                         "Students": students,
                         "Room": "",
                         "Start_Time": "",

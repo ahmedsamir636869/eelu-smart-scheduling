@@ -17,7 +17,8 @@ const getScheduleById = async (scheduleId) => {
               code: true,
               name: true,
               type: true,
-              year: true
+              year: true,
+              college: { select: { id: true, name: true } }
             }
           },
           instructor: {
@@ -29,7 +30,8 @@ const getScheduleById = async (scheduleId) => {
           classroom: {
             select: {
               id: true,
-              name: true
+              name: true,
+              capacity: true
             }
           }
         },
@@ -68,7 +70,8 @@ const getAllSchedules = async ({ campusId, semester } = {}) => {
               code: true,
               name: true,
               type: true,
-              year: true
+              year: true,
+              college: { select: { id: true, name: true } }
             }
           },
           instructor: {
@@ -80,7 +83,8 @@ const getAllSchedules = async ({ campusId, semester } = {}) => {
           classroom: {
             select: {
               id: true,
-              name: true
+              name: true,
+              capacity: true
             }
           }
         }

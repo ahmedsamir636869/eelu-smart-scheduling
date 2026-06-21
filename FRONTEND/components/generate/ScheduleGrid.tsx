@@ -50,10 +50,13 @@ export function ScheduleGrid({ sessions }: ScheduleGridProps) {
       const day = session.day
       const startTime = session.startTime
 
-      // Find the time slot this session belongs to
-      // Session belongs to slot if it starts at that time
-      if (grid[day] && grid[day][startTime]) {
-        grid[day][startTime].push(session)
+      // Snap to the nearest floor slot (e.g. "09:30" → "09:00", "10:45" → "10:00").
+      // TIME_SLOTS are whole-hour keys; sessions may start at half-hours.
+      const snappedSlot =
+        TIME_SLOTS.filter((slot) => slot <= startTime).pop() ?? TIME_SLOTS[0]
+
+      if (grid[day] && snappedSlot) {
+        grid[day][snappedSlot].push(session)
       }
     })
 

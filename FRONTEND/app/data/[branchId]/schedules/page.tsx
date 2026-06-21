@@ -104,8 +104,10 @@ export default function SchedulesPage() {
                 // Get the schedule's college name for fallback
                 const scheduleCollegeName = s.collegeName || s.college?.name || 'General'
 
-                // Map sessions to events
-                const events: ScheduleEvent[] = (s.sessions || []).map((session: any) => {
+                // Map sessions to events — skip unassigned sessions (null day/time)
+                const events: ScheduleEvent[] = (s.sessions || [])
+                    .filter((session: any) => session.day && session.startTime && session.endTime)
+                    .map((session: any) => {
                     // Basic Day Mapping
                     const dayMap: Record<string, DayOfWeek> = {
                         'SATURDAY': 'Saturday',

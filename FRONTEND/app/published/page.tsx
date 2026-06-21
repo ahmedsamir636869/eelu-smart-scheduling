@@ -59,7 +59,7 @@ export default function PublishedPage() {
   const fetchPublishedSchedules = async (campusId: string) => {
     try {
       setLoading(true)
-      const allSchedules = await scheduleApi.getAll()
+      const allSchedules = await scheduleApi.getAll(campusId)
 
       // Get published IDs from LocalStorage
       let publishedIds: string[] = []
@@ -77,8 +77,10 @@ export default function PublishedPage() {
           // Get the schedule's college name for fallback
           const scheduleCollegeName = s.collegeName || s.college?.name || 'General'
 
-          // Map sessions to events (simplified for display)
-          const events: ScheduleEvent[] = (s.sessions || []).map((session: any) => {
+          // Map sessions to events — skip unassigned sessions (null day/time)
+          const events: ScheduleEvent[] = (s.sessions || [])
+            .filter((session: any) => session.day && session.startTime && session.endTime)
+            .map((session: any) => {
             const dayMap: Record<string, DayOfWeek> = {
               'SATURDAY': 'Saturday', 'SUNDAY': 'Sunday', 'MONDAY': 'Monday',
               'TUESDAY': 'Tuesday', 'WEDNESDAY': 'Wednesday', 'THURSDAY': 'Thursday', 'FRIDAY': 'Friday'
