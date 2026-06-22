@@ -249,6 +249,9 @@ export default function StudentsPage({ params }: StudentsPageProps) {
       }
 
       // Delete the student group
+      if (!studentGroupId) {
+        throw new Error('Student group ID not found')
+      }
       await studentGroupApi.delete(studentGroupId)
 
       // Refresh the sections list

@@ -11,18 +11,51 @@ import {
   Settings,
   LogOut,
   X,
-  User
+  User,
+  Calendar,
+  AlertCircle,
+  FileText,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
 
-const menuItems = [
+interface MenuItem {
+  href: string
+  label: string
+  icon: any
+}
+
+const adminMenuItems: MenuItem[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/generate', label: 'Generate', icon: Zap },
   { href: '/data', label: 'Data', icon: Database },
   { href: '/published', label: 'Published', icon: Upload },
   { href: '/reports', label: 'Reports', icon: Clock },
 ]
+
+const doctorMenuItems: MenuItem[] = [
+  { href: '/doctor', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/doctor/published', label: 'Published', icon: FileText },
+  { href: '/doctor/lecture-days', label: 'Lecture Days', icon: Calendar },
+]
+
+const taMenuItems: MenuItem[] = [
+  { href: '/ta', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/ta/schedules', label: 'Schedules', icon: FileText },
+  { href: '/ta/issues', label: 'Issue Logs', icon: AlertCircle },
+]
+
+function getMenuItems(role?: string): MenuItem[] {
+  switch (role) {
+    case 'INSTRUCTOR':
+      return doctorMenuItems
+    case 'TA':
+      return taMenuItems
+    case 'ADMIN':
+    default:
+      return adminMenuItems
+  }
+}
 
 const generalItems = [
   { href: '/profile', label: 'Profile', icon: User },
@@ -36,7 +69,8 @@ interface SidebarProps {
 
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const pathname = usePathname()
-  const { logout } = useAuth()
+  const { logout, user } = useAuth()
+  const menuItems = getMenuItems(user?.role)
 
   return (
     <>
@@ -56,7 +90,9 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
         )}
       >
         <div className="p-6 border-b border-gray-800 flex items-center justify-between">
-          <h1 className="text-white font-bold text-lg">EELU Smart Scheduling</h1>
+          <h1 className="text-white font-bold text-lg">
+            <span className="text-teal-400 font-black">EELU</span> Smart Scheduling
+          </h1>
           <button
             onClick={onClose}
             className="lg:hidden text-gray-400 hover:text-white"
@@ -71,7 +107,11 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             <div className="space-y-1">
               {menuItems.map((item) => {
                 const Icon = item.icon
-                const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
+                const isActive = pathname === item.href || 
+                  (item.href !== '/doctor' && item.href !== '/ta' && item.href !== '/dashboard' && pathname.startsWith(item.href + '/')) ||
+                  (item.href === '/doctor' && pathname === '/doctor') ||
+                  (item.href === '/ta' && pathname === '/ta') ||
+                  (item.href === '/dashboard' && pathname === '/dashboard')
 
                 return (
                   <Link
@@ -93,7 +133,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
             </div>
           </div>
 
-          <div>
+          <div className="border-t border-gray-800 pt-4">
             <p className="text-gray-500 text-xs uppercase mb-2 px-2">GENERAL</p>
             <div className="space-y-1">
               {generalItems.map((item) => {
@@ -129,4 +169,3 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     </>
   )
 }
-

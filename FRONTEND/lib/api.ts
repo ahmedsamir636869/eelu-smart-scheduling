@@ -214,6 +214,16 @@ export const scheduleApi = {
     const response = await api.get<any>(`/schedule/${id}`)
     return response
   },
+
+  updateStatus: async (id: string, status: 'DRAFT' | 'PUBLISHED') => {
+    const response = await api.patch<any>(`/schedule/${id}/status`, { status })
+    return response
+  },
+
+  delete: async (id: string) => {
+    const response = await api.delete<any>(`/schedule/${id}`)
+    return response
+  },
 }
 
 // Import API functions
@@ -362,6 +372,35 @@ export const userApi = {
     password?: string
     isExpatriate?: boolean
   }) => api.patch<any>('/auth/me', data),
+}
+
+// TA API functions
+export const taApi = {
+  getMyReports: () => api.get<any[]>('/ta/reports/me'),
+
+  submitReport: (data: { title: string; content: string }) =>
+    api.post<any>('/ta/reports', data),
+
+  getAllReports: () => api.get<any[]>('/ta/reports'),
+
+  markReportRead: (reportId: string) =>
+    api.patch<any>(`/ta/reports/${reportId}/read`, {}),
+}
+
+// Instructor Availability API functions
+export const instructorAvailabilityApi = {
+  getMyAvailability: () => api.get<any[]>('/instructor/availability/me'),
+
+  submitAvailability: (data: { day: string; startTime: string; endTime: string }) =>
+    api.post<any>('/instructor/availability', data),
+}
+
+// Constraint API functions
+export const constraintApi = {
+  getAll: () => api.get<any[]>('/constraints'),
+  create: (data: any) => api.post<any>('/constraints', data),
+  update: (id: string, data: any) => api.put<any>(`/constraints/${id}`, data),
+  delete: (id: string) => api.delete<any>(`/constraints/${id}`),
 }
 
 export { ApiError }

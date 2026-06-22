@@ -2,7 +2,9 @@ const express = require('express');
 const { 
   generateScheduleController, 
   getScheduleByIdController,
-  getAllSchedulesController 
+  getAllSchedulesController,
+  updateScheduleStatusController,
+  deleteScheduleController
 } = require('../controllers/schedule.controller');
 const { isAuthenticated, isAdmin } = require('../middleware/auth.middleware');
 const { validate, paramsSchema, generateScheduleSchema } = require('../validators/schedule.validator');
@@ -29,5 +31,19 @@ router.get('/:id', isAuthenticated, validate(paramsSchema, 'params'), getSchedul
  * @access  Admin only
  */
 router.post('/generate', isAuthenticated, isAdmin, validate(generateScheduleSchema, 'body'), generateScheduleController);
+
+/**
+ * @route   PATCH /api/v1/schedule/:id/status
+ * @desc    Update schedule status
+ * @access  Admin only
+ */
+router.patch('/:id/status', isAuthenticated, isAdmin, updateScheduleStatusController);
+
+/**
+ * @route   DELETE /api/v1/schedule/:id
+ * @desc    Delete schedule
+ * @access  Admin only
+ */
+router.delete('/:id', isAuthenticated, isAdmin, deleteScheduleController);
 
 module.exports = router;

@@ -4,17 +4,11 @@ import { useState, useEffect } from 'react'
 import { MainLayout } from '@/components/layout/MainLayout'
 import { ScheduleFormulaCard } from '@/components/generate/ScheduleFormulaCard'
 import { GeneratedScheduleView } from '@/components/generate/GeneratedScheduleView'
-import { ConflictResolutionCard } from '@/components/generate/ConflictResolutionCard'
 import { PerformanceInsightCard } from '@/components/generate/PerformanceInsightCard'
 import { PerformanceMetrics } from '@/types/api'
 import { campusApi, scheduleApi, ApiError } from '@/lib/api'
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute'
 
-const mockMetrics: PerformanceMetrics = {
-  initialConflictRate: '4.9%',
-  avgResolutionTime: '2.5 Days',
-  lastSuccessfulRun: 'Bunch 1 - 15/20',
-}
 
 export default function GeneratePage() {
   const [branches, setBranches] = useState<{ value: string; label: string }[]>([])
@@ -26,6 +20,11 @@ export default function GeneratePage() {
   const [semester, setSemester] = useState('Fall 2024')
   const [hasLecturesSchedule, setHasLecturesSchedule] = useState(false)
   const [generatedSchedule, setGeneratedSchedule] = useState<any>(null)
+  const [metrics, setMetrics] = useState<PerformanceMetrics>({
+    initialConflictRate: 'N/A',
+    avgResolutionTime: 'N/A',
+    lastSuccessfulRun: 'N/A',
+  })
 
   // Fetch campuses on mount
   useEffect(() => {
@@ -151,16 +150,35 @@ export default function GeneratePage() {
       ])
 
       setGeneratedSchedule(buildMergedSchedule(lectures, sections))
+
+      const latest = lectures?.createdAt > (sections?.createdAt || 0) ? lectures : (sections || lectures)
+      if (latest) {
+        setMetrics({
+          initialConflictRate: '0%', // Backend doesn't currently provide conflict calculations
+          avgResolutionTime: '0 Days',
+          lastSuccessfulRun: new Date(latest.createdAt).toLocaleString(undefined, {
+            month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+          }),
+        })
+      } else {
+        setMetrics({
+          initialConflictRate: 'N/A',
+          avgResolutionTime: 'N/A',
+          lastSuccessfulRun: 'N/A',
+        })
+      }
     } catch (err) {
       console.warn('Failed to fetch current schedule:', err)
       setGeneratedSchedule(null)
+      setMetrics({
+        initialConflictRate: 'N/A',
+        avgResolutionTime: 'N/A',
+        lastSuccessfulRun: 'N/A',
+      })
     }
   }
 
-  const handleResolveConflicts = () => {
-    // Navigate to conflict resolution page
-    console.log('Navigate to conflict resolution')
-  }
+
 
   return (
     <ProtectedRoute>
@@ -190,8 +208,7 @@ export default function GeneratePage() {
                 onSemesterChange={setSemester}
                 hasLecturesSchedule={hasLecturesSchedule}
               />
-              <ConflictResolutionCard onResolveConflicts={handleResolveConflicts} />
-              <PerformanceInsightCard metrics={mockMetrics} />
+              <PerformanceInsightCard metrics={metrics} />
             </div>
 
             {/* Generated Schedule View */}

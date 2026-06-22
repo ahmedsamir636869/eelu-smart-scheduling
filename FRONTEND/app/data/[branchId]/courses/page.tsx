@@ -137,7 +137,7 @@ export default function CoursesPage({ params }: CoursesPageProps) {
     (course) =>
       course.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       course.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (course.department && typeof course.department === 'object' && course.department.name && course.department.name.toLowerCase().includes(searchQuery.toLowerCase()))
+      ((course as any).department && typeof (course as any).department === 'object' && (course as any).department.name && (course as any).department.name.toLowerCase().includes(searchQuery.toLowerCase()))
   )
 
   const handleCreate = () => {

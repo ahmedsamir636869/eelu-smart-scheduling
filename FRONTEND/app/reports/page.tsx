@@ -1,12 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { BarChart3 } from 'lucide-react'
 import { MainLayout } from '@/components/layout/MainLayout'
 import { ReportListItem } from '@/components/reports/ReportListItem'
 import { ReportDetails } from '@/components/reports/ReportDetails'
-import { QuickFixActions } from '@/components/reports/QuickFixActions'
 import { Card } from '@/components/ui/Card'
+import { taApi } from '@/lib/api'
 
 interface Report {
   id: string
@@ -23,83 +23,43 @@ interface Report {
   adminNotes: string
 }
 
-// Mock reports data
-const initialReports: Report[] = [
-  {
-    id: '101',
-    reportNumber: '101',
-    userId: '235251',
-    branch: '2',
-    branchName: 'Assiut',
-    faculty: 'IT',
-    level: 'L3',
-    dateReported: '2025-10-25',
-    scheduleId: 's03',
-    description: 'Instructor Eng.Sara is assigned to two different courses at the same time.',
-    status: 'new',
-    adminNotes: '',
-  },
-  {
-    id: '102',
-    reportNumber: '102',
-    userId: '252524',
-    branch: '14',
-    branchName: 'Aswan',
-    faculty: 'Business',
-    level: 'L2',
-    dateReported: '2025-10-24',
-    scheduleId: 's14',
-    description: 'Instructor Eng.Sara is assigned to two different courses at the same time.',
-    status: 'resolved',
-    adminNotes: 'Resolved by reassigning time slot.',
-  },
-  {
-    id: '103',
-    reportNumber: '103',
-    userId: '252524',
-    branch: '5',
-    branchName: 'Beni Suef',
-    faculty: 'IT',
-    level: 'L1',
-    dateReported: '2025-10-23',
-    scheduleId: 's05',
-    description: 'Instructor Eng.Sara is assigned to two different courses at the same time.',
-    status: 'in_progress',
-    adminNotes: 'Working on resolution...',
-  },
-  {
-    id: '104',
-    reportNumber: '104',
-    userId: '252524',
-    branch: '1',
-    branchName: 'Ain Shams',
-    faculty: 'Business',
-    level: 'L4',
-    dateReported: '2025-10-22',
-    scheduleId: 's01',
-    description: 'Instructor Eng.Sara is assigned to two different courses at the same time.',
-    status: 'resolved',
-    adminNotes: 'Resolved by adjusting room capacity.',
-  },
-  {
-    id: '105',
-    reportNumber: '105',
-    userId: '252524',
-    branch: '1',
-    branchName: 'Ain Shams',
-    faculty: 'IT',
-    level: 'L2',
-    dateReported: '2025-10-21',
-    scheduleId: 's01',
-    description: 'Instructor Eng.Sara is assigned to two different courses at the same time.',
-    status: 'in_progress',
-    adminNotes: 'Reviewing conflict details...',
-  },
-]
-
 export default function ReportsPage() {
-  const [reports, setReports] = useState<Report[]>(initialReports)
-  const [selectedReportId, setSelectedReportId] = useState<string>('101')
+  const [reports, setReports] = useState<Report[]>([])
+  const [selectedReportId, setSelectedReportId] = useState<string>('')
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const fetchReports = async () => {
+      try {
+        setLoading(true)
+        const data = await taApi.getAllReports()
+        const mappedReports = data.map((r: any) => ({
+          id: r.id,
+          reportNumber: r.id.substring(r.id.length - 6),
+          userId: r.ta?.name || 'Unknown User',
+          branch: 'N/A',
+          branchName: 'System',
+          faculty: 'General',
+          level: 'N/A',
+          dateReported: new Date(r.createdAt).toISOString().split('T')[0],
+          scheduleId: 'N/A',
+          description: `${r.title}\n\n${r.content}`,
+          status: (r.status === 'READ' ? 'resolved' : 'new') as Report['status'],
+          adminNotes: '',
+        }))
+        setReports(mappedReports)
+        if (mappedReports.length > 0) {
+          setSelectedReportId(mappedReports[0].id)
+        }
+      } catch (err) {
+        console.error('Failed to fetch TA reports:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchReports()
+  }, [])
 
   const selectedReport = reports.find(r => r.id === selectedReportId) || reports[0]
 
@@ -119,32 +79,33 @@ export default function ReportsPage() {
     ))
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (!selectedReportId) return
     console.log('Saving admin notes for report:', selectedReportId)
-    // In real app, this would call the API
-    // api.put(`/reports/${selectedReportId}`, { status: selectedReport.status, adminNotes: selectedReport.adminNotes })
-  }
-
-  const handleReassignTimeSlot = () => {
-    console.log('Reassign time slot for report:', selectedReportId)
-    // In real app, this would open a modal or navigate to reassignment page
-  }
-
-  const handleAdjustRoomCapacity = () => {
-    console.log('Adjust room capacity for report:', selectedReportId)
-    // In real app, this would open a modal or navigate to capacity adjustment page
-  }
-
-  const handleRecalculateSection = () => {
-    console.log('Recalculate section for report:', selectedReportId)
-    // In real app, this would trigger recalculation
+    
+    // If the status is resolved, call the API to mark it as read/resolved
+    const currentReport = reports.find(r => r.id === selectedReportId)
+    if (currentReport?.status === 'resolved') {
+      try {
+        await taApi.markReportRead(selectedReportId)
+      } catch (err) {
+        console.error('Failed to mark report as read:', err)
+      }
+    }
   }
 
   return (
     <MainLayout title="Reports">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
-        {/* Left Column - Reports List */}
-        <div className="lg:col-span-2 space-y-4 sm:space-y-6">
+      {loading ? (
+        <div className="flex justify-center items-center h-[50vh]">
+          <div className="w-10 h-10 border-4 border-teal-500 border-t-transparent rounded-full animate-spin"></div>
+        </div>
+      ) : reports.length === 0 ? (
+        <div className="flex justify-center items-center h-[50vh] text-gray-400">
+          No TA issue reports found.
+        </div>
+      ) : (
+        <div className="space-y-4 sm:space-y-6 max-w-5xl">
           <Card>
             <div className="flex items-center gap-2 mb-4">
               <BarChart3 className="w-5 h-5 text-gray-400" />
@@ -186,16 +147,7 @@ export default function ReportsPage() {
             onSave={handleSave}
           />
         </div>
-
-        {/* Right Column - Quick Fix Actions */}
-        <div>
-          <QuickFixActions
-            onReassignTimeSlot={handleReassignTimeSlot}
-            onAdjustRoomCapacity={handleAdjustRoomCapacity}
-            onRecalculateSection={handleRecalculateSection}
-          />
-        </div>
-      </div>
+      )}
     </MainLayout>
   )
 }

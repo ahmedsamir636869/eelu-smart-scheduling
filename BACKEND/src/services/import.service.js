@@ -304,15 +304,17 @@ const importStudentGroups = async (data, campusId) => {
       // Map Excel columns to database fields
       // Expected columns: Name, Year, StudentCount, Department, College, Campus
       // Also support Division format: Num_ID, Year, StudentNum, Department, Major
+      // And SData format: Branch, Sections, Group
       const name = row.Name || row.name || row['Student Group'] || row['Student Group Name'] || 
-                   row.Num_ID || row['Num_ID'] || row['Division ID'] || row['Division'];
+                   row.Num_ID || row['Num_ID'] || row['Division ID'] || row['Division'] || 
+                   (row.Group ? `${row.Group}-${row.Sections || '1'}` : null) || row.Sections;
       const year = parseInt(row.Year || row.year || row.Level || row.level) || 1;
       const studentCount = parseInt(row.StudentCount || row['Student Count'] || row.studentCount || 
-                                   row.Students || row.students || row.StudentNum || row['StudentNum']) || 0;
-      const departmentName = row.Department || row.department || row.Dept || row.dept;
+                                   row.Students || row.students || row.StudentNum || row['StudentNum']) || 25; // Default 25
+      const departmentName = row.Department || row.department || row.Dept || row.dept || 'IT'; // Default to IT to match course
       const collegeName = row.College || row.college || row.CollegeName || row.collegeName;
       const major = row.Major || row.major; // For Division format
-      const campusName = row.Campus || row.campus || row.CampusName || row.campusName;
+      const campusName = row.Campus || row.campus || row.CampusName || row.campusName || row.Branch;
 
       if (!name) {
         results.errors.push({ row, error: 'Missing required field: Name or Num_ID' });
@@ -580,7 +582,7 @@ const importInstructors = async (data, campusId) => {
     try {
       // Map Excel columns to database fields
       // Support schedule format: Instructor_ID, Instructor_Name, Department, Day, Start_Time, End_Time
-      const instructorId = row['Instructor_ID'] || row['Instructor ID'] || row.instructor_id || row.instructorId;
+      const instructorId = row['Instructor_ID'] || row['Instructor ID'] || row.instructor_id || row.instructorId || row['Asssistant_ID'] || row['Assistant_ID'] || row.assistant_id || row.assistantId;
       const name = row.Name || row.name || row['Instructor Name'] || row['Instructor_Name'] || 
                    row['Instructor_Name'] || row['Doctor Name'] || row['Doctor_Name'];
       const email = row.Email || row.email || row['Email Address'];
@@ -734,13 +736,14 @@ const importCourses = async (data, campusId, instructorIdMap = new Map()) => {
       // Expected columns: Code, Name, Type, Days, HoursPerDay, Year, Department, College, Instructor
       // Also support: Course_ID, Course_Name, Type, Days, Hours_per_day, Year, Department, Major, Instructor_ID
       const code = row.Code || row.code || row['Course Code'] || row['Course_ID'] || row['Course ID'] || 
-                   row['Course_Code'] || row.course_id || row.courseId;
-      const name = row.Name || row.name || row['Course Name'] || row['Course_Name'] || row.course_name;
+                   row['Course_Code'] || row.course_id || row.courseId || row['Section_ID'] || row['Section ID'] || row.section_id || row.sectionId;
+      const name = row.Name || row.name || row['Course Name'] || row['Course_Name'] || row.course_name || row['Section_Name'] || row['Section Name'] || row.section_name || row.sectionName;
       const typeStr = (row.Type || row.type || row['Course Type'] || row['Course_Type'] || '').toUpperCase();
       const type = typeStr.includes('PRACTICAL') || typeStr.includes('LAB') || typeStr.includes('SECTION') ? 'PRACTICAL' : 'THEORETICAL';
       const days = parseInt(row.Days || row.days || row['Days Per Week'] || row['Days_per_week'] || row.days_per_week) || 1;
       const hoursPerDay = parseInt(row['Hours Per Day'] || row['HoursPerDay'] || row['Hours_per_day'] || 
-                           row['Hours_per_Day'] || row.hoursPerDay || row.hours_per_day || row.Hours || row.hours) || 1;
+                           row['Hours_per_Day'] || row.hoursPerDay || row.hours_per_day || row.Hours || row.hours || 
+                           row['Duration '] || row.Duration || row.duration) || 1;
       const year = parseInt(row.Year || row.year || row.Level || row.level) || 1;
       const departmentName = row.Department || row.department || row.Dept || row.dept;
       const major = row.Major || row.major; // For Division format compatibility
@@ -896,10 +899,12 @@ const importAllData = async (data, campusId) => {
     const hasYear = keys.some(k => k === 'year' || k.includes('year'));
     const hasStudentNum = keys.some(k => k === 'studentnum' || k === 'student_num' || 
                                       k.includes('studentnum') || (k.includes('student') && k.includes('num')));
+    const hasSDataDivisionFields = keys.includes('branch') && keys.includes('sections') && keys.includes('group');
     
     const isDivisionRow = (
       sheetName.includes('division') ||
-      (hasNumId && hasMajor && hasYear && hasStudentNum)
+      (hasNumId && hasMajor && hasYear && hasStudentNum) ||
+      hasSDataDivisionFields
     );
     
     // Detect student groups: has Name/Num_ID, Year/Level, StudentCount/Students/StudentNum
@@ -934,26 +939,29 @@ const importAllData = async (data, campusId) => {
       !keys.some(k => k === 'studentnum' || k === 'student_num')
     );
 
-    // Detect instructors: has Instructor_ID/Name, Department
-    // Can have Email (basic info) OR Day/Start_Time/End_Time (schedule format)
+    // Detect instructors: has Instructor_ID/Name/Assistant_ID, Department
+    // Can have Email (basic info) OR Day/Start_Time/End_Time (schedule format), or just ID/Name mapping
     const hasInstructorFields = (
-      (keys.some(k => k.includes('instructor_id') || k.includes('instructor id')) ||
-       keys.some(k => (k.includes('name') || k.includes('instructor') || k.includes('doctor')) &&
+      (keys.some(k => k.includes('instructor_id') || k.includes('instructor id') || k.includes('assistant_id') || k.includes('asssistant_id')) ||
+       keys.some(k => (k.includes('name') || k.includes('instructor') || k.includes('doctor') || k.includes('assistant')) &&
                       !k.includes('course') && !k.includes('group'))) &&
       (keys.some(k => k.includes('department') || k.includes('dept'))) &&
-      // Either has email (basic info) OR has schedule fields (Day, Start_Time, End_Time)
+      // Either has email (basic info) OR has schedule fields (Day, Start_Time, End_Time) OR is just an ID mapping
       (keys.some(k => k.includes('email')) ||
        (keys.some(k => k === 'day' || k.includes('day')) &&
         keys.some(k => k.includes('start_time') || k.includes('start time') || k.includes('start')) &&
-        keys.some(k => k.includes('end_time') || k.includes('end time') || k.includes('end'))))
+        keys.some(k => k.includes('end_time') || k.includes('end time') || k.includes('end'))) ||
+       keys.some(k => k.includes('instructor_id') || k.includes('asssistant_id') || k.includes('assistant_id')))
     );
 
     // Detect courses: has Course_ID/Code, Course_Name, Type, Days, Hours_per_day
     const hasCourseFields = (
       (keys.some(k => k.includes('course_id') || k.includes('course id') || 
                       k.includes('course_code') || k.includes('course code') ||
+                      k.includes('section_id') || k.includes('section id') ||
                       (k.includes('code') && !k.includes('instructor')))) &&
       (keys.some(k => k.includes('course_name') || k.includes('course name') ||
+                      k.includes('section_name') || k.includes('section name') ||
                       (k.includes('name') && k.includes('course')) ||
                       (k.includes('name') && !k.includes('instructor') && !k.includes('group') && 
                        !k.includes('room') && !k.includes('classroom')))) &&
@@ -1012,7 +1020,7 @@ const importAllData = async (data, campusId) => {
   // This mapping comes from the Doctors/Instructors sheet data
   const instructorIdMap = new Map();
   for (const row of instructorRows) {
-    const instructorId = row['Instructor_ID'] || row['Instructor ID'] || row.instructor_id || row.instructorId;
+    const instructorId = row['Instructor_ID'] || row['Instructor ID'] || row.instructor_id || row.instructorId || row['Asssistant_ID'] || row['Assistant_ID'] || row.assistant_id || row.assistantId;
     const name = row.Name || row.name || row['Instructor Name'] || row['Instructor_Name'] || 
                  row['Instructor_Name'] || row['Doctor Name'] || row['Doctor_Name'];
     if (instructorId && name) {

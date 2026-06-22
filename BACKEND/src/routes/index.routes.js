@@ -15,9 +15,10 @@ const scheduleRoutes = require("./schedule.routes");
 
 const studentGroupRoutes = require("./studentGroup.routes");
 const instructorRoutes = require("./instructor.routes");
-const taRoutes = require("./ta.routes");
 const userRoutes = require("./user.routes");
 const importRoutes = require("./import.routes");
+const taRoutes = require('./ta.routes');
+const constraintRoutes = require('./constraint.routes');
 
 
 router.use("/auth", authRoutes);
@@ -31,8 +32,9 @@ router.use("/session", sessionRoutes);
 router.use("/schedule", scheduleRoutes);
 router.use("/studentGroup", studentGroupRoutes);
 router.use("/instructor", instructorRoutes);
-router.use("/ta", taRoutes);
 router.use("/user", userRoutes);
 router.use("/import", importRoutes);
+router.use('/ta', taRoutes);
+router.use('/constraints', constraintRoutes);
 
 module.exports = router;

@@ -114,19 +114,24 @@ function VerifyEmailContent() {
 
   if (!email) {
     return (
-      <MainLayout title="Verify Email">
-        <div className="max-w-md mx-auto mt-8">
+      <div className="min-h-screen bg-gray-950 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+        <div className="max-w-md mx-auto mt-8 w-full">
           <Card>
             <div className="text-center text-gray-400">Loading...</div>
           </Card>
         </div>
-      </MainLayout>
+      </div>
     )
   }
 
   return (
-    <MainLayout title="Verify Email">
-      <div className="max-w-md mx-auto mt-8">
+    <div className="min-h-screen bg-gray-950 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+        <h2 className="mt-6 text-center text-3xl font-extrabold text-white">
+          EELU Smart Scheduling
+        </h2>
+      </div>
+      <div className="max-w-md mx-auto mt-8 w-full">
         <Card>
           <div className="text-center mb-6">
             <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600/20 rounded-full mb-4">
@@ -211,20 +216,20 @@ function VerifyEmailContent() {
           </div>
         </Card>
       </div>
-    </MainLayout>
+    </div>
   )
 }
 
 export default function VerifyEmailPage() {
   return (
     <Suspense fallback={
-      <MainLayout title="Verify Email">
-        <div className="max-w-md mx-auto mt-8">
+      <div className="min-h-screen bg-gray-950 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+        <div className="max-w-md mx-auto mt-8 w-full">
           <Card>
             <div className="text-center text-gray-400">Loading...</div>
           </Card>
         </div>
-      </MainLayout>
+      </div>
     }>
       <VerifyEmailContent />
     </Suspense>

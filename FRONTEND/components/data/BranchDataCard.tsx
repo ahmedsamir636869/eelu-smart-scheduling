@@ -7,7 +7,7 @@ interface BranchDataCardProps {
   title: string
   description: string
   icon: ReactNode
-  iconColor?: 'green' | 'blue' | 'red' | 'yellow' | 'teal'
+  iconColor?: 'green' | 'blue' | 'red' | 'yellow' | 'teal' | 'purple'
   href: string
   showButton?: boolean
   buttonText?: string
@@ -32,6 +32,7 @@ export function BranchDataCard({
     red: 'bg-red-500/20 text-red-400',
     yellow: 'bg-yellow-500/20 text-yellow-400',
     teal: 'bg-teal-500/20 text-teal-400',
+    purple: 'bg-purple-500/20 text-purple-400',
   }
 
   const content = (

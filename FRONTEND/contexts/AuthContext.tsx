@@ -10,6 +10,15 @@ interface User {
   email: string
   name: string
   role: string
+  roles?: string[]
+}
+
+function normalizeUser(user: any): User {
+  if (!user) return user;
+  return {
+    ...user,
+    role: user.role || (user.roles && user.roles.length > 0 ? user.roles[0] : 'UNKNOWN')
+  };
 }
 
 interface AuthContextType {
@@ -20,6 +29,18 @@ interface AuthContextType {
   logout: () => Promise<void>
   refreshToken: () => Promise<void>
   isAuthenticated: boolean
+}
+
+function getDashboardRoute(role?: string): string {
+  switch (role) {
+    case 'INSTRUCTOR':
+      return '/doctor'
+    case 'TA':
+      return '/ta'
+    case 'ADMIN':
+    default:
+      return '/dashboard'
+  }
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -37,7 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Token exists and is valid, try to get user info
         try {
           const userInfo = await api.get<User>('/auth/me')
-          setUser(userInfo)
+          setUser(normalizeUser(userInfo))
         } catch (error) {
           // If fetching user info fails, clear token
           removeAccessToken()
@@ -49,7 +70,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await refreshToken()
           // After refresh, try to get user info
           const userInfo = await api.get<User>('/auth/me')
-          setUser(userInfo)
+          setUser(normalizeUser(userInfo))
         } catch (error) {
           // Refresh failed, already handled in refreshToken
         }
@@ -72,8 +93,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       )
 
       setAccessToken(response.accessToken)
-      setUser(response.user)
-      router.push('/dashboard')
+      const normalizedUser = normalizeUser(response.user)
+      setUser(normalizedUser)
+      router.push(getDashboardRoute(role || normalizedUser.role))
     } catch (error: any) {
       throw new Error(error.message || 'Login failed')
     }

@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
-import { Save, AlertTriangle } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Save, AlertTriangle, Loader2 } from 'lucide-react'
 import { MainLayout } from '@/components/layout/MainLayout'
 import { Card } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { SoftConstraintToggle } from '@/components/settings/SoftConstraintToggle'
 import { CalendarSettings } from '@/components/settings/CalendarSettings'
+import { constraintApi } from '@/lib/api'
 
 interface SoftConstraint {
   id: string
@@ -15,61 +16,95 @@ interface SoftConstraint {
   enabled: boolean
 }
 
-const initialConstraints: SoftConstraint[] = [
+const DEFAULT_CONSTRAINTS = [
   {
-    id: 'SC1',
     title: 'SC1: Staff Preference (TAs)',
     description: 'Respect TAs\' preferred day-offs whenever possible; may be overridden if no feasible solution exists.',
-    enabled: true,
+    type: 'OTHER', value: 'N/A', isActive: true,
   },
   {
-    id: 'SC2',
     title: 'SC2: Staff Preference (Instructors)',
     description: 'Respect instructors\' preferred teaching days/times (e.g., morning or midweek).',
-    enabled: true,
+    type: 'OTHER', value: 'N/A', isActive: true,
   },
   {
-    id: 'SC3',
     title: 'SC3: Time Distribution (Students)',
     description: 'Distribute lectures evenly throughout the week (avoid clustering).',
-    enabled: true,
+    type: 'OTHER', value: 'N/A', isActive: true,
   },
   {
-    id: 'SC4',
     title: 'SC4: Optimization (Students / Staff)',
     description: 'Minimize idle gaps between consecutive sessions for both students and staff.',
-    enabled: true,
+    type: 'OTHER', value: 'N/A', isActive: true,
   },
   {
-    id: 'SC5',
     title: 'SC5: Resource Optimization (IT)',
     description: 'Schedule sections earlier in the day (preferably before 4 PM) for optimal lab use.',
-    enabled: true,
+    type: 'OTHER', value: 'N/A', isActive: true,
   },
   {
-    id: 'SC6',
     title: 'SC6: Course Organization (Students)',
     description: 'Group lectures and sections of the same course on nearby days for continuity.',
-    enabled: false,
+    type: 'OTHER', value: 'N/A', isActive: false,
   },
 ]
 
 export default function SettingsPage() {
-  const [constraints, setConstraints] = useState<SoftConstraint[]>(initialConstraints)
+  const [constraints, setConstraints] = useState<SoftConstraint[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    const fetchConstraints = async () => {
+      try {
+        setLoading(true)
+        let data = await constraintApi.getAll()
+        
+        // Seed initial constraints if the DB is empty
+        if (data.length === 0) {
+          console.log('Seeding initial constraints...')
+          for (const c of DEFAULT_CONSTRAINTS) {
+            await constraintApi.create({ name: c.title, description: c.description, type: c.type, value: c.value, isActive: c.isActive })
+          }
+          data = await constraintApi.getAll()
+        }
+
+        setConstraints(data.map((c: any) => ({
+          id: c.id,
+          title: c.name,
+          description: c.description,
+          enabled: c.isActive
+        })))
+      } catch (err) {
+        console.error('Failed to fetch constraints', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchConstraints()
+  }, [])
 
   const handleConstraintChange = (id: string, enabled: boolean) => {
     setConstraints(constraints.map(c => c.id === id ? { ...c, enabled } : c))
   }
 
-  const handleSave = () => {
-    console.log('Saving configuration:', constraints)
-    // In real app, this would call the API
-    // api.post('/settings/constraints', { constraints })
+  const handleSave = async () => {
+    try {
+      setSaving(true)
+      await Promise.all(constraints.map(c => 
+        constraintApi.update(c.id, { isActive: c.enabled })
+      ))
+      alert('Configuration saved successfully!')
+    } catch (err) {
+      console.error('Failed to save constraints:', err)
+      alert('Failed to save configuration.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleEditCalendar = () => {
-    console.log('Opening calendar settings editor')
-    // In real app, this would open a modal or navigate to calendar settings page
+    alert('Calendar settings are managed automatically via the scheduling formula rules based on constraints.')
   }
 
   return (
@@ -84,13 +119,31 @@ export default function SettingsPage() {
                 Manage the behavior and optimization goals of the automatic scheduling formula. Changes here affect 'all' branches.
               </p>
             </div>
-            <Button variant="primary" icon={<Save className="w-4 h-4" />} onClick={handleSave} className="w-full sm:w-auto">
-              Save Configuration
+            <Button variant="primary" icon={<Save className="w-4 h-4" />} onClick={handleSave} disabled={loading || saving} className="w-full sm:w-auto">
+              {saving ? 'Saving...' : 'Save Configuration'}
             </Button>
           </div>
 
           <div className="mb-6">
-            <h3 className="text-white font-medium mb-4">Soft Constraint Toggles</h3>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-4">
+              <h3 className="text-white font-medium">Soft Constraint Toggles</h3>
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant="secondary" 
+                  onClick={() => setConstraints(constraints.map(c => ({ ...c, enabled: true })))} 
+                  disabled={loading || saving}
+                >
+                  Enable All
+                </Button>
+                <Button 
+                  variant="secondary" 
+                  onClick={() => setConstraints(constraints.map(c => ({ ...c, enabled: false })))} 
+                  disabled={loading || saving}
+                >
+                  Disable All
+                </Button>
+              </div>
+            </div>
             
             {/* Warning Note */}
             <div className="bg-red-500/20 border border-red-500/30 rounded-lg p-4 mb-6 flex items-start gap-3">
@@ -102,22 +155,28 @@ export default function SettingsPage() {
 
             {/* Constraint Toggles */}
             <div className="space-y-3">
-              {constraints.map((constraint) => (
-                <SoftConstraintToggle
-                  key={constraint.id}
-                  id={constraint.id}
-                  title={constraint.title}
-                  description={constraint.description}
-                  enabled={constraint.enabled}
-                  onChange={(enabled) => handleConstraintChange(constraint.id, enabled)}
-                />
-              ))}
+              {loading ? (
+                <div className="flex justify-center p-8">
+                  <Loader2 className="w-8 h-8 text-teal-400 animate-spin" />
+                </div>
+              ) : (
+                constraints.map((constraint) => (
+                  <SoftConstraintToggle
+                    key={constraint.id}
+                    id={constraint.id}
+                    title={constraint.title}
+                    description={constraint.description}
+                    enabled={constraint.enabled}
+                    onChange={(enabled) => handleConstraintChange(constraint.id, enabled)}
+                  />
+                ))
+              )}
             </div>
           </div>
 
           <div className="flex justify-end">
-            <Button variant="primary" icon={<Save className="w-4 h-4" />} onClick={handleSave}>
-              Save Configuration
+            <Button variant="primary" icon={<Save className="w-4 h-4" />} onClick={handleSave} disabled={loading || saving}>
+              {saving ? 'Saving...' : 'Save Configuration'}
             </Button>
           </div>
         </Card>

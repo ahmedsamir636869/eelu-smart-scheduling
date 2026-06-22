@@ -62,157 +62,220 @@ class SectionScheduler:
     def run(self, output_path: Optional[Path] = None) -> SectionScheduleResult:
         """Build combined CP + section schedule."""
         cp_slots = self._prepare_cp_slots()
-        lab_rooms = self._get_lab_rooms()
         assistant_pool, assistant_id_to_name = self._build_assistant_pool()
         division_students = self._build_division_students()
         course_instructor_from_data = self._build_course_instructor_map()
         course_defaults = self._build_course_defaults(cp_slots)
 
-        sec_course_col = find_column(
-            self.sections, ["Course_Name", "Course", "Subject"], required=False
-        )
-        sec_div_col = find_column(
-            self.sections,
-            ["Division", "Num_ID", "Division_ID", "Group_ID", "Group", "Major"],
-            required=False,
-        )
-        sec_name_col = find_column(
-            self.sections, ["Section", "Section_Name", "Sec", "Name"], required=False
-        )
-        sec_inst_col = find_column(
-            self.sections,
-            [
-                "Instructor_Name",
-                "Instructor",
-                "Doctor",
-                "Assistant",
-                "Assistant_Name",
-                "TA",
-            ],
-            required=False,
-        )
+        sec_course_col = find_column(self.sections, ["Course_Name", "Course", "Subject"], required=False)
+        sec_div_col = find_column(self.sections, ["Division", "Num_ID", "Division_ID", "Group_ID", "Group", "Major"], required=False)
+        sec_name_col = find_column(self.sections, ["Section", "Section_Name", "Sec", "Name"], required=False)
+        sec_inst_col = find_column(self.sections, ["Instructor_Name", "Instructor", "Doctor", "Assistant", "Assistant_Name", "TA"], required=False)
 
         def normalize_instructor_name(value: Any) -> str:
             raw = "" if value is None else str(value).strip()
             return assistant_id_to_name.get(raw, raw)
 
-        room_busy: set = set()
-        instructor_busy: set = set()
-        section_busy: set = set()
+        from .utils import time_to_minutes, minutes_to_time_str
+        
+        # Determine available days from CP slots, or default
+        days = ["Saturday", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday"]
+        if "Day" in cp_slots.columns and not cp_slots["Day"].empty:
+            days = cp_slots["Day"].unique().tolist()
+        
+        # Standard time blocks (2 hours)
+        blocks = [
+            (9 * 60, 11 * 60),
+            (11 * 60, 13 * 60),
+            (13 * 60, 15 * 60),
+            (15 * 60, 17 * 60),
+        ]
+        
+        # Initialize busy tracking from CP lectures
+        room_busy: List[Tuple[str, int, int, str]] = []  # day, start, end, room
+        div_busy: List[Tuple[str, int, int, str]] = []   # day, start, end, division
+        inst_busy: List[Tuple[str, int, int, str]] = []  # day, start, end, instructor
+
+        for _, row in cp_slots.iterrows():
+            day = str(row.get("Day", "")).strip()
+            room = str(row.get("Room", "")).strip()
+            major = str(row.get("Major", "")).strip()
+            inst = str(row.get("Instructor_Name", "")).strip()
+            
+            try:
+                start_m = time_to_minutes(str(row.get("Start_Time", "")))
+                end_m = time_to_minutes(str(row.get("End_Time", "")))
+            except (ValueError, TypeError):
+                continue
+                
+            if day and start_m < end_m:
+                if room:
+                    room_busy.append((day, start_m, end_m, room))
+                if major:
+                    div_busy.append((day, start_m, end_m, major))
+                if inst:
+                    inst_busy.append((day, start_m, end_m, inst))
+
+        def is_overlap(start1, end1, start2, end2):
+            return max(start1, start2) < min(end1, end2)
+
+        import math
+        
         section_rows: List[Dict[str, Any]] = []
         auto_instructor_idx = 0
+
+        # Count sections per division+course to divide students
+        section_counts = {}
+        for _, sec in self.sections.iterrows():
+            c_name = str(sec[sec_course_col]).strip() if sec_course_col else ""
+            d_name = str(sec[sec_div_col]).strip() if sec_div_col else ""
+            key = (c_name, d_name)
+            section_counts[key] = section_counts.get(key, 0) + 1
+
+        course_section_idx = {}
+
+        # Pre-calculate room capacities and types
+        room_capacities = {}
+        room_types = {}
+        room_name_col = find_column(self.rooms, ["Room", "Room_Name"])
+        room_cap_col = find_column(self.rooms, ["Capacity", "Cap", "Size"], required=False)
+        room_type_col = find_column(self.rooms, ["Type", "Room_Type"], required=False)
+        for _, r in self.rooms.iterrows():
+            rname = str(r.get(room_name_col, "")).strip()
+            if rname:
+                try:
+                    room_capacities[rname] = int(r.get(room_cap_col, 30) if room_cap_col else 30)
+                except (ValueError, TypeError):
+                    room_capacities[rname] = 30
+                if room_type_col is not None:
+                    room_types[rname] = str(r.get(room_type_col, "")).strip().lower()
+                else:
+                    room_types[rname] = "lab"
+                    
+        all_rooms_list = list(room_capacities.keys())
 
         for i, sec in self.sections.iterrows():
             course_name = str(sec[sec_course_col]).strip() if sec_course_col else ""
             division_name = str(sec[sec_div_col]).strip() if sec_div_col else ""
-            section_name = (
-                str(sec[sec_name_col]).strip() if sec_name_col else f"Section_{i + 1}"
-            )
+            section_name = str(sec[sec_name_col]).strip() if sec_name_col else f"Section_{i + 1}"
 
-            if (
-                sec_inst_col
-                and pd.notna(sec[sec_inst_col])
-                and str(sec[sec_inst_col]).strip()
-            ):
+            key = (course_name, division_name)
+            course_section_idx[key] = course_section_idx.get(key, 0) + 1
+            student_group_id = f"{division_name}_G{course_section_idx[key]}"
+
+            if sec_inst_col and pd.notna(sec[sec_inst_col]) and str(sec[sec_inst_col]).strip():
                 section_assistant = normalize_instructor_name(sec[sec_inst_col])
             else:
-                section_assistant = normalize_instructor_name(
-                    assistant_pool[auto_instructor_idx % len(assistant_pool)]
-                )
+                section_assistant = normalize_instructor_name(assistant_pool[auto_instructor_idx % len(assistant_pool)])
                 auto_instructor_idx += 1
 
             defaults = course_defaults.get(course_name, {})
-            section_instructor_name = course_instructor_from_data.get(
-                course_name
-            ) or defaults.get("Instructor_Name", "")
+            section_instructor_name = course_instructor_from_data.get(course_name) or defaults.get("Instructor_Name", "")
+            
+            raw_students = division_students.get(division_name, "")
+            divided_students = raw_students
+            try:
+                num_secs = section_counts.get(key, 1)
+                divided_students = str(math.ceil(int(raw_students) / num_secs))
+            except (ValueError, TypeError):
+                pass
 
-            candidates = cp_slots.copy()
-            if course_name:
-                by_course = candidates[
-                    candidates["Course_Name"].astype(str).str.strip() == course_name
-                ]
-                if not by_course.empty:
-                    candidates = by_course
-            if division_name:
-                by_major = candidates[
-                    candidates["Major"].astype(str).str.strip() == division_name
-                ]
-                if not by_major.empty:
-                    candidates = by_major
+            major = division_name if division_name else defaults.get("Major", "")
 
             assigned = False
-            for _, slot in candidates.iterrows():
-                day = str(slot["Day"]).strip()
-                start_time = str(slot["Start_Time"]).strip()
-                end_time = str(slot["End_Time"]).strip()
-
-                for room in lab_rooms:
-                    room_key = (day, start_time, end_time, room)
-                    inst_key = (day, start_time, end_time, section_assistant)
-                    sec_key = (day, start_time, end_time, section_name)
-
-                    if (
-                        room_key in room_busy
-                        or inst_key in instructor_busy
-                        or sec_key in section_busy
-                    ):
+            
+            # Find an available slot
+            for day in days:
+                for start_m, end_m in blocks:
+                    # Check division overlap (lectures block the whole division, sections block only the specific sub-group)
+                    div_conflict = any(
+                        db_day == day and (db_div == division_name or db_div == student_group_id) and is_overlap(start_m, end_m, db_start, db_end)
+                        for db_day, db_start, db_end, db_div in div_busy
+                    )
+                    if div_conflict:
                         continue
+                        
+                    # Check assistant overlap
+                    inst_conflict = any(
+                        ib_day == day and ib_inst == section_assistant and is_overlap(start_m, end_m, ib_start, ib_end)
+                        for ib_day, ib_start, ib_end, ib_inst in inst_busy
+                    )
+                    if inst_conflict:
+                        continue
+                        
+                    # Find a free room
+                    chosen_room = ""
+                    
+                    if "lab" in major.lower() or "practical" in major.lower() or "lab" in course_name.lower():
+                        needed_type = "lab"
+                    else:
+                        needed_type = "lecture"
+                        
+                    # Filter rooms by type
+                    target_rooms = [
+                        r for r in all_rooms_list
+                        if (needed_type == "lab" and "lab" in room_types.get(r, "lab")) or
+                           (needed_type == "lecture" and "lecture" in room_types.get(r, "lecture"))
+                    ]
+                    # Fallback to all rooms if no specific ones match
+                    if not target_rooms:
+                        target_rooms = all_rooms_list
 
-                    room_busy.add(room_key)
-                    instructor_busy.add(inst_key)
-                    section_busy.add(sec_key)
+                    for room in target_rooms:
+                        # Capacity check
+                        cap = room_capacities.get(room, 30)
+                        try:
+                            if int(divided_students) > cap:
+                                continue
+                        except (ValueError, TypeError):
+                            pass
 
-                    slot_defaults = course_defaults.get(course_name, {})
-                    students = division_students.get(division_name, "")
-
-                    section_rows.append(
-                        {
+                        room_conflict = any(
+                            rb_day == day and rb_room == room and is_overlap(start_m, end_m, rb_start, rb_end)
+                            for rb_day, rb_start, rb_end, rb_room in room_busy
+                        )
+                        if not room_conflict:
+                            chosen_room = room
+                            break
+                            
+                    if chosen_room:
+                        room_busy.append((day, start_m, end_m, chosen_room))
+                        div_busy.append((day, start_m, end_m, student_group_id))
+                        inst_busy.append((day, start_m, end_m, section_assistant))
+                        
+                        section_rows.append({
                             "Day": day,
-                            "Course_Name": course_name
-                            if course_name
-                            else str(slot["Course_Name"]),
+                            "Course_Name": course_name,
                             "Instructor_Name": section_instructor_name,
                             "Assistant_Name": section_assistant,
-                            "Students": students,
-                            "Room": room,
-                            "Start_Time": start_time,
-                            "End_Time": end_time,
-                            "Major": division_name
-                            if division_name
-                            else slot_defaults.get("Major", ""),
-                        }
-                    )
-                    assigned = True
-                    break
-
+                            "Students": divided_students,
+                            "Room": chosen_room,
+                            "Start_Time": minutes_to_time_str(start_m),
+                            "End_Time": minutes_to_time_str(end_m),
+                            "Major": major,
+                        })
+                        assigned = True
+                        break
+                        
                 if assigned:
                     break
 
             if not assigned:
-                slot_defaults = course_defaults.get(course_name, {})
-                students = division_students.get(division_name, "")
-
-                section_rows.append(
-                    {
-                        "Day": "UNASSIGNED",
-                        "Course_Name": course_name,
-                        "Instructor_Name": section_instructor_name,
-                        "Assistant_Name": section_assistant,
-                        "Students": students,
-                        "Room": "",
-                        "Start_Time": "",
-                        "End_Time": "",
-                        "Major": division_name
-                        if division_name
-                        else slot_defaults.get("Major", ""),
-                    }
-                )
+                section_rows.append({
+                    "Day": "UNASSIGNED",
+                    "Course_Name": course_name,
+                    "Instructor_Name": section_instructor_name,
+                    "Assistant_Name": section_assistant,
+                    "Students": divided_students,
+                    "Room": "",
+                    "Start_Time": "",
+                    "End_Time": "",
+                    "Major": major,
+                })
 
         section_schedule = pd.DataFrame(section_rows)
         cp_formatted = self._format_cp_output(self.cp_schedule)
-        combined_schedule = pd.concat(
-            [cp_formatted, section_schedule[FINAL_COLS]], ignore_index=True
-        )
+        combined_schedule = pd.concat([cp_formatted, section_schedule[FINAL_COLS]], ignore_index=True)
 
         written_path: Optional[Path] = None
         if output_path is not None:

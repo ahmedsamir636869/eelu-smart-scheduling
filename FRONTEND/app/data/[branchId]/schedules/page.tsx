@@ -13,11 +13,8 @@ import {
     ScheduleCard,
     ScheduleEditor,
     ScheduleViewer,
-    CreateScheduleModal,
     Schedule,
     College,
-    mockColleges,
-    mockEvents,
     DayOfWeek,
     ScheduleEvent,
     EVENT_COLORS
@@ -36,7 +33,7 @@ export default function SchedulesPage() {
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState('')
     const [schedules, setSchedules] = useState<Schedule[]>([])
-    const [colleges, setColleges] = useState<College[]>(mockColleges)
+    const [colleges, setColleges] = useState<College[]>([])
     const [searchQuery, setSearchQuery] = useState('')
     const [viewMode, setViewMode] = useState<ViewMode>('grid')
     const [modalState, setModalState] = useState<ModalState>('none')
@@ -84,22 +81,9 @@ export default function SchedulesPage() {
             setError('')
             const apiSchedules = await scheduleApi.getAll()
 
-            // Get published status from LocalStorage
-            let publishedIds: string[] = []
-            if (typeof window !== 'undefined') {
-                const stored = localStorage.getItem('publishedScheduleIds')
-                if (stored) {
-                    try {
-                        publishedIds = JSON.parse(stored)
-                    } catch (e) {
-                        console.error('Failed to parse publishedScheduleIds', e)
-                    }
-                }
-            }
-
             // Map API schedules to local Schedule type
             const mappedSchedules: Schedule[] = apiSchedules.map((s: any) => {
-                const isPublished = publishedIds.includes(s.id)
+                const isPublished = s.status === 'PUBLISHED'
 
                 // Get the schedule's college name for fallback
                 const scheduleCollegeName = s.collegeName || s.college?.name || 'General'
@@ -201,28 +185,6 @@ export default function SchedulesPage() {
     })
 
     // Handlers
-    const handleCreateSchedule = async (data: {
-        name: string
-        collegeId: string
-        generationType: 'manual' | 'ai'
-    }) => {
-        const college = colleges.find((c) => c.id === data.collegeId)
-        const newSchedule: Schedule = {
-            id: `schedule-${Date.now()}`,
-            name: data.name,
-            collegeId: data.collegeId,
-            collegeName: college?.name || 'Unknown College',
-            status: 'draft',
-            events: data.generationType === 'ai' ? mockEvents : [],
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            generatedBy: data.generationType,
-        }
-        setSchedules([newSchedule, ...schedules])
-        setSelectedSchedule(newSchedule)
-        setModalState('edit')
-    }
-
     const handleViewSchedule = (schedule: Schedule) => {
         setSelectedSchedule(schedule)
         setModalState('view')
@@ -233,54 +195,48 @@ export default function SchedulesPage() {
         setModalState('edit')
     }
 
-    const handleDeleteSchedule = (schedule: Schedule) => {
+    const handleDeleteSchedule = async (schedule: Schedule) => {
         if (confirm(`Are you sure you want to delete "${schedule.name}"?`)) {
-            setSchedules(schedules.filter((s) => s.id !== schedule.id))
+            try {
+                await scheduleApi.delete(schedule.id)
+                setSchedules(schedules.filter((s) => s.id !== schedule.id))
+            } catch (err) {
+                console.error('Failed to delete schedule', err)
+                setError('Failed to delete schedule')
+            }
         }
     }
 
     const handleSaveAsDraft = async (updatedSchedule: Schedule) => {
-        // Update local state
-        setSchedules(
-            schedules.map((s) =>
-                s.id === updatedSchedule.id ? { ...updatedSchedule, status: 'draft' } : s
+        try {
+            await scheduleApi.updateStatus(updatedSchedule.id, 'DRAFT')
+            setSchedules(
+                schedules.map((s) =>
+                    s.id === updatedSchedule.id ? { ...updatedSchedule, status: 'draft' } : s
+                )
             )
-        )
-
-        // If it was published, remove from published list
-        if (typeof window !== 'undefined') {
-            const stored = localStorage.getItem('publishedScheduleIds')
-            if (stored) {
-                const publishedIds: string[] = JSON.parse(stored)
-                const newIds = publishedIds.filter(id => id !== updatedSchedule.id)
-                localStorage.setItem('publishedScheduleIds', JSON.stringify(newIds))
-            }
+            setModalState('none')
+            setSelectedSchedule(null)
+        } catch (err) {
+            console.error('Failed to update status to draft', err)
+            setError('Failed to update schedule status')
         }
-
-        setModalState('none')
-        setSelectedSchedule(null)
     }
 
     const handleSaveAndPublish = async (updatedSchedule: Schedule) => {
-        // Update local state
-        setSchedules(
-            schedules.map((s) =>
-                s.id === updatedSchedule.id ? { ...updatedSchedule, status: 'published' } : s
+        try {
+            await scheduleApi.updateStatus(updatedSchedule.id, 'PUBLISHED')
+            setSchedules(
+                schedules.map((s) =>
+                    s.id === updatedSchedule.id ? { ...updatedSchedule, status: 'published' } : s
+                )
             )
-        )
-
-        // Save to LocalStorage
-        if (typeof window !== 'undefined') {
-            const stored = localStorage.getItem('publishedScheduleIds')
-            const publishedIds: string[] = stored ? JSON.parse(stored) : []
-            if (!publishedIds.includes(updatedSchedule.id)) {
-                publishedIds.push(updatedSchedule.id)
-                localStorage.setItem('publishedScheduleIds', JSON.stringify(publishedIds))
-            }
+            setModalState('none')
+            setSelectedSchedule(null)
+        } catch (err) {
+            console.error('Failed to publish schedule', err)
+            setError('Failed to publish schedule')
         }
-
-        setModalState('none')
-        setSelectedSchedule(null)
     }
 
     const handlePublishDirectly = (schedule: Schedule) => {
@@ -327,17 +283,9 @@ export default function SchedulesPage() {
                                     Schedule Management
                                 </h1>
                                 <p className="text-gray-400 text-sm mt-2 ml-1">
-                                    Create, manage, and publish course schedules for this branch
+                                    Manage and publish course schedules for this branch
                                 </p>
                             </div>
-                            <Button
-                                variant="primary"
-                                icon={<Plus className="w-5 h-5" />}
-                                onClick={() => setModalState('create')}
-                                className="shrink-0 shadow-lg shadow-teal-900/20"
-                            >
-                                Create New Schedule
-                            </Button>
                         </div>
 
                         {/* Dashboard Stats */}
@@ -482,28 +430,11 @@ export default function SchedulesPage() {
                             <p className="text-gray-400 text-sm mb-6">
                                 {searchQuery || statusFilter !== 'all'
                                     ? 'Try changing your search or filters'
-                                    : 'Create your first schedule for this branch'}
+                                    : 'Navigate to the Generate page to create your first schedule'}
                             </p>
-                            {!searchQuery && statusFilter === 'all' && (
-                                <Button
-                                    variant="primary"
-                                    icon={<Plus className="w-5 h-5" />}
-                                    onClick={() => setModalState('create')}
-                                >
-                                    Create New Schedule
-                                </Button>
-                            )}
                         </div>
                     )}
                 </div>
-
-                {/* Create Schedule Modal */}
-                <CreateScheduleModal
-                    isOpen={modalState === 'create'}
-                    onClose={handleCloseModal}
-                    onCreate={handleCreateSchedule}
-                    colleges={colleges}
-                />
 
                 {/* Schedule Viewer */}
                 {modalState === 'view' && selectedSchedule && (

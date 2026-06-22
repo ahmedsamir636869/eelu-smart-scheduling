@@ -1,5 +1,5 @@
 const { AIIntegrationService } = require('../services/ai-integration.service');
-const { getScheduleById, getAllSchedules } = require('../services/schedule.service');
+const { getScheduleById, getAllSchedules, updateScheduleStatus, deleteSchedule } = require('../services/schedule.service');
 const STATUS_MESSAGES = require('../constants/status.messages');
 
 const aiService = new AIIntegrationService();
@@ -98,8 +98,66 @@ const getAllSchedulesController = async (req, res) => {
   }
 };
 
+const updateScheduleStatusController = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    
+    if (!id || !status) {
+      return res.status(STATUS_MESSAGES.BAD_REQUEST).json({
+        success: false,
+        message: 'Schedule ID and status are required'
+      });
+    }
+
+    const updatedSchedule = await updateScheduleStatus(id, status);
+
+    return res.status(STATUS_MESSAGES.OK).json({
+      success: true,
+      message: 'Schedule status updated successfully',
+      schedule: updatedSchedule
+    });
+  } catch (error) {
+    console.error('❌ Error updating schedule status:', error.message);
+    return res.status(STATUS_MESSAGES.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: 'Failed to update schedule status',
+      error: error.message
+    });
+  }
+};
+
+const deleteScheduleController = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(STATUS_MESSAGES.BAD_REQUEST).json({
+        success: false,
+        message: 'Schedule ID is required'
+      });
+    }
+
+    await deleteSchedule(id);
+
+    return res.status(STATUS_MESSAGES.OK).json({
+      success: true,
+      message: 'Schedule deleted successfully'
+    });
+  } catch (error) {
+    console.error('❌ Error deleting schedule:', error.message);
+    return res.status(STATUS_MESSAGES.INTERNAL_SERVER_ERROR).json({
+      success: false,
+      message: 'Failed to delete schedule',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   generateScheduleController,
   getScheduleByIdController,
-  getAllSchedulesController
+  getAllSchedulesController,
+  updateScheduleStatusController,
+  deleteScheduleController
 };

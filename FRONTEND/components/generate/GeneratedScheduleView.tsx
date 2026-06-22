@@ -189,7 +189,7 @@ export function GeneratedScheduleView({ schedule, loading }: GeneratedScheduleVi
     if (!schedule || !schedule.sessions) return
 
     // Create CSV content
-    const headers = ['Day', 'Course Name', 'Course Code', 'College', 'Instructor', 'Room', 'Start Time', 'End Time', 'Students', 'Type', 'Year']
+    const headers = ['Day', 'Course Name', 'Course Code', 'College', 'Instructor', 'Room', 'Capacity', 'Start Time', 'End Time', 'Students', 'Group', 'Type', 'Year']
 
     const dayMap: Record<string, string> = {
       'SATURDAY': 'Saturday',
@@ -214,19 +214,30 @@ export function GeneratedScheduleView({ schedule, loading }: GeneratedScheduleVi
       }
     }
 
-    const rows = schedule.sessions.map(session => [
-      dayMap[session.day || ''] || session.day || '',
-      session.course?.name || session.name,
-      session.course?.code || '',
-      session.course?.college?.name || '',
-      session.instructor?.name || 'Unassigned',
-      session.classroom?.name || 'TBA',
-      formatTime(session.startTime),
-      formatTime(session.endTime),
-      session.studentCount.toString(),
-      session.type,
-      session.course?.year?.toString() || ''
-    ])
+    const rows = schedule.sessions.map(session => {
+      // Extract group from session name if available (Course Name (Group ID - Group A/B))
+      let groupName = ''
+      if (session.name && session.name.includes('(Group')) {
+        const match = session.name.match(/\((.*?)\)$/)
+        if (match) groupName = match[1]
+      }
+
+      return [
+        dayMap[session.day || ''] || session.day || '',
+        session.course?.name || session.name,
+        session.course?.code || '',
+        session.course?.college?.name || '',
+        session.instructor?.name || 'Unassigned',
+        session.classroom?.name || 'TBA',
+        session.classroom?.capacity?.toString() || '',
+        formatTime(session.startTime),
+        formatTime(session.endTime),
+        session.studentCount.toString(),
+        groupName,
+        session.type,
+        session.course?.year?.toString() || ''
+      ]
+    })
 
     // Sort by day and time
     const dayOrder = ['Saturday', 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday']

@@ -98,8 +98,23 @@ const getAllSchedules = async ({ campusId, semester } = {}) => {
   return schedules;
 };
 
+const updateScheduleStatus = async (scheduleId, status) => {
+  return prisma.schedule.update({
+    where: { id: scheduleId },
+    data: { status }
+  });
+};
+
+const deleteSchedule = async (scheduleId) => {
+  return prisma.schedule.delete({
+    where: { id: scheduleId }
+  });
+};
+
 module.exports = {
   getScheduleById,
-  getAllSchedules
+  getAllSchedules,
+  updateScheduleStatus,
+  deleteSchedule
 };
 

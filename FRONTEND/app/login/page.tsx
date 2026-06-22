@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
@@ -17,7 +17,7 @@ const roleOptions = [
   { value: 'TA', label: 'Teaching Assistant' },
 ]
 
-export default function LoginPage() {
+function LoginPageContent() {
   const searchParams = useSearchParams()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -57,8 +57,13 @@ export default function LoginPage() {
   }
 
   return (
-    <MainLayout title="Login">
-      <div className="max-w-md mx-auto mt-8">
+    <div className="min-h-screen bg-gray-950 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+        <h2 className="mt-6 text-center text-3xl font-extrabold text-white">
+          EELU Smart Scheduling
+        </h2>
+      </div>
+      <div className="max-w-md mx-auto mt-8 w-full">
         <Card>
           <h1 className="text-2xl font-bold text-white mb-6">Login</h1>
 
@@ -137,7 +142,18 @@ export default function LoginPage() {
           </div>
         </Card>
       </div>
-    </MainLayout>
+    </div>
   )
 }
 
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen bg-gray-950">
+        <div className="text-gray-400">Loading...</div>
+      </div>
+    }>
+      <LoginPageContent />
+    </Suspense>
+  )
+}
