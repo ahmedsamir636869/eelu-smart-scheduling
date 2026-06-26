@@ -257,6 +257,3 @@ enum ConstraintType {
   OTHER
 }
 
-generator erd {
-  provider = "prisma-erd-generator"
-}
