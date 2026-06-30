@@ -391,8 +391,9 @@ export const taApi = {
 export const instructorAvailabilityApi = {
   getMyAvailability: () => api.get<any[]>('/instructor/availability/me'),
 
-  submitAvailability: (data: { day: string; startTime: string; endTime: string }) =>
-    api.post<any>('/instructor/availability', data),
+  // Backend expects: { slots: [{ day, startTime, endTime }, ...] }
+  submitAvailability: (slots: { day: string; startTime: string; endTime: string }[]) =>
+    api.post<any>('/instructor/availability', { slots }),
 }
 
 // Constraint API functions

@@ -77,22 +77,27 @@ export default function DoctorLectureDaysPage() {
       return
     }
 
+    // Only include days not already submitted
+    const newSlots = selectedDays
+      .filter((day) => !existingAvailability.find((a: any) => a.day === day.day))
+      .map((day) => ({
+        day: day.day,
+        startTime: new Date(`2024-01-01T${day.startTime}:00Z`).toISOString(),
+        endTime: new Date(`2024-01-01T${day.endTime}:00Z`).toISOString(),
+      }))
+
+    if (newSlots.length === 0) {
+      setError('All selected days are already submitted.')
+      return
+    }
+
     setSubmitting(true)
     setError('')
     setSuccess('')
 
     try {
-      for (const day of selectedDays) {
-        // Only submit if not already submitted
-        const alreadyExists = existingAvailability.find((a: any) => a.day === day.day)
-        if (!alreadyExists) {
-          await instructorAvailabilityApi.submitAvailability({
-            day: day.day,
-            startTime: new Date(`2024-01-01T${day.startTime}:00Z`).toISOString(),
-            endTime: new Date(`2024-01-01T${day.endTime}:00Z`).toISOString(),
-          })
-        }
-      }
+      // Send all slots in one request: { slots: [...] }
+      await instructorAvailabilityApi.submitAvailability(newSlots)
       setSuccess('Availability submitted successfully!')
       fetchExistingAvailability()
     } catch (err: any) {
